@@ -5,14 +5,25 @@ namespace RefaccionariaPOS.Data
 {
     public class DatabaseConnection
     {
+        private const string PrimaryConnectionEnvironmentVariable = "REFACCIONARIA_NUEVA_DB_CONNECTION";
         private const string ConnectionEnvironmentVariable = "REFACCIONARIA_DB_CONNECTION";
 
         private readonly string connectionString =
-            BuildConnectionString(Environment.GetEnvironmentVariable(ConnectionEnvironmentVariable));
+            BuildConnectionString(GetConfiguredConnectionString());
 
         public NpgsqlConnection GetConnection()
         {
             return new NpgsqlConnection(connectionString);
+        }
+
+        private static string? GetConfiguredConnectionString()
+        {
+            return Environment.GetEnvironmentVariable(PrimaryConnectionEnvironmentVariable, EnvironmentVariableTarget.Process)
+                ?? Environment.GetEnvironmentVariable(PrimaryConnectionEnvironmentVariable, EnvironmentVariableTarget.User)
+                ?? Environment.GetEnvironmentVariable(PrimaryConnectionEnvironmentVariable, EnvironmentVariableTarget.Machine)
+                ?? Environment.GetEnvironmentVariable(ConnectionEnvironmentVariable, EnvironmentVariableTarget.Process)
+                ?? Environment.GetEnvironmentVariable(ConnectionEnvironmentVariable, EnvironmentVariableTarget.User)
+                ?? Environment.GetEnvironmentVariable(ConnectionEnvironmentVariable, EnvironmentVariableTarget.Machine);
         }
 
         private static string BuildConnectionString(string? configuredConnectionString)
@@ -20,7 +31,7 @@ namespace RefaccionariaPOS.Data
             if (string.IsNullOrWhiteSpace(configuredConnectionString))
             {
                 throw new InvalidOperationException(
-                    $"Configura la variable de entorno {ConnectionEnvironmentVariable} con la cadena de conexion de Neon.");
+                    $"Configura la variable de entorno {PrimaryConnectionEnvironmentVariable} con la cadena de conexion de Neon.");
             }
 
             if (!configuredConnectionString.StartsWith("postgresql://", StringComparison.OrdinalIgnoreCase)

@@ -10,7 +10,7 @@ Aplicacion WPF de punto de venta para refaccionaria, basada en el diseno de la a
 
 ```powershell
 [Environment]::SetEnvironmentVariable(
-  "REFACCIONARIA_DB_CONNECTION",
+  "REFACCIONARIA_NUEVA_DB_CONNECTION",
   "Host=TU_HOST;Database=TU_DB;Username=TU_USUARIO;Password=TU_PASSWORD;SSL Mode=Require;Trust Server Certificate=true",
   "User"
 )
@@ -20,7 +20,7 @@ Tambien puedes usar una cadena URI de Neon compatible con Npgsql, por ejemplo:
 
 ```powershell
 [Environment]::SetEnvironmentVariable(
-  "REFACCIONARIA_DB_CONNECTION",
+  "REFACCIONARIA_NUEVA_DB_CONNECTION",
   "postgresql://usuario:password@host.neon.tech/dbname?sslmode=require",
   "User"
 )
