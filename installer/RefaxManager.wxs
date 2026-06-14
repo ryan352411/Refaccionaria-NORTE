@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
-  <Package Name="RefaxManager" Manufacturer="RefaxManager" Version="1.0.5" UpgradeCode="B1B2335E-2332-4603-BD26-0B3B8865024A" Scope="perUser">
+  <Package Name="RefaxManager" Manufacturer="RefaxManager" Version="1.0.6" UpgradeCode="B1B2335E-2332-4603-BD26-0B3B8865024A" Scope="perUser">
     <MajorUpgrade DowngradeErrorMessage="Ya existe una version mas reciente de RefaxManager instalada." />
     <MediaTemplate EmbedCab="yes" />
     <Icon Id="RefaxManagerIcon" SourceFile="builds\RefaxManager\RefaxManager.exe" />
@@ -27,6 +27,7 @@
       <Component Id="ApplicationFiles" Guid="CC6DB9B4-2BFC-487F-862F-0D8E04F96BB7">
         <File Id="RefaxManagerExe" Source="builds\RefaxManager\RefaxManager.exe" KeyPath="yes" />
         <Environment Id="NeonConnectionEnvironment" Name="REFACCIONARIA_NUEVA_DB_CONNECTION" Value="$(var.DbConnectionString)" Action="set" Part="all" System="no" />
+        <Environment Id="LicenseConnectionEnvironment" Name="REFACCIONARIA_LICENSE_DB_CONNECTION" Value="$(var.LicenseDbConnectionString)" Action="set" Part="all" System="no" />
       </Component>
     </DirectoryRef>
 
