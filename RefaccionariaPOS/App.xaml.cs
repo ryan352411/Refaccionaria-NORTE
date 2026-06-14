@@ -1,4 +1,5 @@
 using System.Windows;
+using RefaccionariaPOS.Security;
 using RefaccionariaPOS.Views;
 
 namespace RefaccionariaPOS
@@ -8,6 +9,13 @@ namespace RefaccionariaPOS
         protected override void OnStartup(StartupEventArgs e)
         {
             base.OnStartup(e);
+
+            if (!ActivationService.Validate(out string activationMessage))
+            {
+                MessageBox.Show(activationMessage, "Licencia", MessageBoxButton.OK, MessageBoxImage.Warning);
+                Shutdown();
+                return;
+            }
 
             LoginView pantallaLogin = new LoginView();
             MainWindow = pantallaLogin;
