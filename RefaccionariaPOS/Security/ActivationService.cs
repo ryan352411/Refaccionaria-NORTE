@@ -20,7 +20,7 @@ namespace RefaccionariaPOS.Security
             try
             {
                 Guid installationId = GetOrCreateInstallationId();
-                bool isActive = RegisterLaunchAndReadActivation(installationId);
+                bool isActive = RegisterInstallationAndReadActivation(installationId);
 
                 if (!isActive)
                 {
@@ -38,7 +38,7 @@ namespace RefaccionariaPOS.Security
             }
         }
 
-        private static bool RegisterLaunchAndReadActivation(Guid installationId)
+        private static bool RegisterInstallationAndReadActivation(Guid installationId)
         {
             string machineName = Environment.MachineName;
             string windowsUser = Environment.UserName;
@@ -48,21 +48,14 @@ namespace RefaccionariaPOS.Security
             connection.Open();
             using NpgsqlTransaction transaction = connection.BeginTransaction();
 
-            const string upsertSql = @"
+            const string insertSql = @"
                 INSERT INTO app_installations
                     (installation_id, app_code, app_name, machine_name, windows_user, app_version, first_seen_at, last_seen_at, launch_count, is_active)
                 VALUES
                     (@installationId, @appCode, @appName, @machineName, @windowsUser, @appVersion, now(), now(), 1, true)
-                ON CONFLICT (installation_id) DO UPDATE
-                SET machine_name = EXCLUDED.machine_name,
-                    windows_user = EXCLUDED.windows_user,
-                    app_version = EXCLUDED.app_version,
-                    last_seen_at = now(),
-                    launch_count = app_installations.launch_count + 1
-                RETURNING is_active;";
+                ON CONFLICT (installation_id) DO NOTHING;";
 
-            bool isActive;
-            using (NpgsqlCommand command = new NpgsqlCommand(upsertSql, connection, transaction))
+            using (NpgsqlCommand command = new NpgsqlCommand(insertSql, connection, transaction))
             {
                 command.Parameters.AddWithValue("@installationId", installationId);
                 command.Parameters.AddWithValue("@appCode", AppCode);
@@ -70,22 +63,19 @@ namespace RefaccionariaPOS.Security
                 command.Parameters.AddWithValue("@machineName", machineName);
                 command.Parameters.AddWithValue("@windowsUser", windowsUser);
                 command.Parameters.AddWithValue("@appVersion", appVersion);
-                isActive = Convert.ToBoolean(command.ExecuteScalar());
+                command.ExecuteNonQuery();
             }
 
-            const string eventSql = @"
-                INSERT INTO app_installation_events
-                    (installation_id, app_code, event_type, machine_name, windows_user)
-                VALUES
-                    (@installationId, @appCode, 'launch', @machineName, @windowsUser);";
+            const string activationSql = @"
+                SELECT is_active
+                FROM app_installations
+                WHERE installation_id = @installationId;";
 
-            using (NpgsqlCommand command = new NpgsqlCommand(eventSql, connection, transaction))
+            bool isActive;
+            using (NpgsqlCommand command = new NpgsqlCommand(activationSql, connection, transaction))
             {
                 command.Parameters.AddWithValue("@installationId", installationId);
-                command.Parameters.AddWithValue("@appCode", AppCode);
-                command.Parameters.AddWithValue("@machineName", machineName);
-                command.Parameters.AddWithValue("@windowsUser", windowsUser);
-                command.ExecuteNonQuery();
+                isActive = Convert.ToBoolean(command.ExecuteScalar());
             }
 
             transaction.Commit();
