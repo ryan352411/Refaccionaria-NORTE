@@ -1,7 +1,7 @@
 ﻿<Window x:Class="RefaccionariaPOS.Views.MainView"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Panel de Control - Refaccionaria Nueva" Height="650" Width="1000"
+        Title="Panel de Control - RefaxManager" Height="650" Width="1000"
         WindowStartupLocation="CenterScreen" Background="#F1F2F6">
 
     <Grid>
@@ -19,7 +19,7 @@
                 </Grid.RowDefinitions>
 
                 <StackPanel Grid.Row="0" Margin="0,10,0,34">
-                    <TextBlock Text="REFACCIONARIA" FontSize="24" FontWeight="Black" Foreground="White"/>
+                    <TextBlock Text="RefaxManager" FontSize="24" FontWeight="Black" Foreground="White"/>
                     <TextBlock Text="Punto de venta" FontSize="12" Foreground="#B8C4D6" Margin="0,4,0,0"/>
                 </StackPanel>
 

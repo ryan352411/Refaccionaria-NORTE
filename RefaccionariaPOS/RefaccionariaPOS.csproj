@@ -7,6 +7,10 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
     <ApplicationIcon>Assets\AppIcon.ico</ApplicationIcon>
+    <AssemblyName>RefaxManager</AssemblyName>
+    <Product>RefaxManager</Product>
+    <Company>RefaxManager</Company>
+    <Version>1.0.0</Version>
   </PropertyGroup>
 
   <ItemGroup>

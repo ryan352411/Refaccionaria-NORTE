@@ -398,7 +398,7 @@ namespace RefaccionariaPOS.Views
             try
             {
                 List<string> lineasTicket = CrearLineasTicket(folio);
-                string rutaCarpeta = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "Tickets_Refaccionaria");
+                string rutaCarpeta = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "Tickets_RefaxManager");
 
                 if (!Directory.Exists(rutaCarpeta))
                 {
@@ -557,7 +557,7 @@ namespace RefaccionariaPOS.Views
                 ImprimirTicket(new List<string>
                 {
                     "========================================",
-                    "    PRUEBA DE IMPRESORA REFACCIONARIA   ",
+                    "      PRUEBA DE IMPRESORA RefaxManager  ",
                     "========================================",
                     $"Fecha: {DateTime.Now:dd/MM/yyyy HH:mm:ss}",
                     "Impresora lista para tickets.",

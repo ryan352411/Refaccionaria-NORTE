@@ -1,4 +1,4 @@
-# Refaccionaria Nueva
+# RefaxManager
 
 Aplicacion WPF de punto de venta para refaccionaria, basada en el diseno de la app original y separada de integraciones externas.
 
