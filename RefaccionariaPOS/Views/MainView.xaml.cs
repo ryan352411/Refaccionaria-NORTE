@@ -12,9 +12,11 @@ namespace RefaccionariaPOS.Views
     {
         private const string RolVendedor = "Vendedor";
         private static readonly Brush InventarioNormal = new SolidColorBrush(Color.FromRgb(36, 59, 85));
-        private static readonly Brush InventarioAlerta = new SolidColorBrush(Color.FromRgb(220, 38, 38));
-        private static readonly Brush NotificacionesNormal = new SolidColorBrush(Color.FromRgb(245, 158, 11));
+        private static readonly Brush InventarioAdvertencia = new SolidColorBrush(Color.FromRgb(245, 158, 11));
+        private static readonly Brush InventarioCritico = new SolidColorBrush(Color.FromRgb(220, 38, 38));
         private static readonly Brush NotificacionesSinAlertas = new SolidColorBrush(Color.FromRgb(36, 59, 85));
+        private static readonly Brush FilaAdvertencia = new SolidColorBrush(Color.FromRgb(255, 237, 213));
+        private static readonly Brush FilaCritica = new SolidColorBrush(Color.FromRgb(254, 226, 226));
 
         private readonly int idUsuarioActual;
         private readonly string usuarioActual;
@@ -126,8 +128,8 @@ namespace RefaccionariaPOS.Views
             catch (Exception ex)
             {
                 lblContadorAlertas.Text = "!";
-                btnNotificaciones.Background = InventarioAlerta;
-                btnInventario.Background = InventarioAlerta;
+                btnNotificaciones.Background = InventarioCritico;
+                btnInventario.Background = InventarioCritico;
                 btnInventario.Content = "Inventario / Catálogo";
                 lblSubtitulo.Text = "No se pudieron cargar las alertas de inventario: " + ex.Message;
             }
@@ -151,8 +153,9 @@ namespace RefaccionariaPOS.Views
                 return;
             }
 
-            btnNotificaciones.Background = NotificacionesNormal;
-            btnInventario.Background = InventarioAlerta;
+            Brush colorAlerta = agotados > 0 ? InventarioCritico : InventarioAdvertencia;
+            btnNotificaciones.Background = colorAlerta;
+            btnInventario.Background = colorAlerta;
             btnInventario.Content = $"Inventario / Catálogo ({totalAlertas})";
             lblSubtitulo.Text = agotados > 0
                 ? $"{totalAlertas} alertas de inventario: {agotados} productos sin stock."
@@ -203,6 +206,16 @@ namespace RefaccionariaPOS.Views
                 AlternatingRowBackground = new SolidColorBrush(Color.FromRgb(248, 250, 252)),
                 HeadersVisibility = DataGridHeadersVisibility.Column
             };
+            tabla.LoadingRow += (_, e) =>
+            {
+                if (e.Row.Item is not InventarioAlerta alerta)
+                {
+                    return;
+                }
+
+                e.Row.Background = alerta.StockActual == 0 ? FilaCritica : FilaAdvertencia;
+                e.Row.Foreground = new SolidColorBrush(Color.FromRgb(30, 41, 59));
+            };
             tabla.Columns.Add(new DataGridTextColumn { Header = "Estado", Binding = new System.Windows.Data.Binding("Tipo"), Width = 100 });
             tabla.Columns.Add(new DataGridTextColumn { Header = "Codigo", Binding = new System.Windows.Data.Binding("CodigoBarras"), Width = 120 });
             tabla.Columns.Add(new DataGridTextColumn { Header = "Producto", Binding = new System.Windows.Data.Binding("Nombre"), Width = new DataGridLength(1, DataGridLengthUnitType.Star) });
@@ -216,7 +229,7 @@ namespace RefaccionariaPOS.Views
                 Content = "Abrir Inventario",
                 Width = 140,
                 Height = 36,
-                Background = InventarioAlerta,
+                Background = alertasInventario.Exists(a => a.StockActual == 0) ? InventarioCritico : InventarioAdvertencia,
                 Foreground = Brushes.White,
                 FontWeight = FontWeights.Bold,
                 BorderThickness = new Thickness(0)

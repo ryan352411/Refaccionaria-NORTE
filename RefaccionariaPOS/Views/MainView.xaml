@@ -26,16 +26,6 @@
                 <StackPanel Grid.Row="1" VerticalAlignment="Top">
                     <Button x:Name="btnVenta" Content="Punto de Venta" Height="44" Margin="0,5" Background="#2ECC71" Foreground="White" FontSize="15" FontWeight="Bold" BorderThickness="0" Cursor="Hand" Click="BtnVenta_Click"/>
 
-                    <Button x:Name="btnNotificaciones" Height="44" Margin="0,5" Background="#F59E0B" Foreground="White" FontSize="15" FontWeight="Bold" BorderThickness="0" Cursor="Hand" Click="BtnNotificaciones_Click">
-                        <DockPanel LastChildFill="True">
-                            <TextBlock Text="🔔" FontSize="17" Margin="0,0,8,0" VerticalAlignment="Center"/>
-                            <TextBlock Text="Notificaciones" VerticalAlignment="Center"/>
-                            <Border x:Name="brdContadorAlertas" DockPanel.Dock="Right" MinWidth="28" Height="22" CornerRadius="11" Background="#DC2626" Padding="7,1" Margin="8,0,0,0">
-                                <TextBlock x:Name="lblContadorAlertas" Text="0" FontSize="12" FontWeight="Black" Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                            </Border>
-                        </DockPanel>
-                    </Button>
-
                     <Button x:Name="btnInventario" Content="Inventario / Catálogo" Height="44" Margin="0,5" Background="#243B55" Foreground="White" FontSize="15" FontWeight="SemiBold" BorderThickness="0" Cursor="Hand" Click="BtnInventario_Click"/>
                     <Button x:Name="btnHistorial" Content="Historial de Ventas" Height="44" Margin="0,5" Background="#243B55" Foreground="White" FontSize="15" FontWeight="SemiBold" BorderThickness="0" Cursor="Hand" Click="BtnHistorial_Click"/>
                     <Button x:Name="btnCorteCaja" Content="Corte de Caja" Height="44" Margin="0,5" Background="#2980B9" Foreground="White" FontSize="15" FontWeight="Bold" BorderThickness="0" Cursor="Hand" Click="BtnCorteCaja_Click"/>
@@ -56,10 +46,26 @@
                 <RowDefinition Height="*"/>
             </Grid.RowDefinitions>
 
-            <StackPanel Grid.Row="0" Margin="0,10,0,0">
-                <TextBlock Text="Panel de operación" FontSize="30" FontWeight="Bold" Foreground="#1E272E"/>
-                <TextBlock x:Name="lblSubtitulo" Text="Selecciona una opción del menú para empezar." FontSize="14" Foreground="#6B7785" Margin="0,8,0,0"/>
-            </StackPanel>
+            <Grid Grid.Row="0" Margin="0,10,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Grid.Column="0">
+                    <TextBlock Text="Panel de operación" FontSize="30" FontWeight="Bold" Foreground="#1E272E"/>
+                    <TextBlock x:Name="lblSubtitulo" Text="Selecciona una opción del menú para empezar." FontSize="14" Foreground="#6B7785" Margin="0,8,0,0"/>
+                </StackPanel>
+
+                <Button x:Name="btnNotificaciones" Grid.Column="1" Width="52" Height="44" Background="#243B55" Foreground="White" FontSize="18" FontWeight="Bold" BorderThickness="0" Cursor="Hand" Click="BtnNotificaciones_Click">
+                    <Grid>
+                        <TextBlock Text="🔔" FontSize="20" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        <Border x:Name="brdContadorAlertas" MinWidth="22" Height="20" CornerRadius="10" Background="#DC2626" Padding="5,0" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,-9,-11,0">
+                            <TextBlock x:Name="lblContadorAlertas" Text="0" FontSize="11" FontWeight="Black" Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                    </Grid>
+                </Button>
+            </Grid>
 
             <UniformGrid Grid.Row="1" Columns="2" Margin="0,30,0,0" VerticalAlignment="Top" Height="150">
                 <Border Background="White" CornerRadius="8" Margin="10" Padding="20">
