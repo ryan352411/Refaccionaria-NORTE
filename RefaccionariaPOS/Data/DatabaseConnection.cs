@@ -37,7 +37,9 @@ namespace RefaccionariaPOS.Data
             if (!configuredConnectionString.StartsWith("postgresql://", StringComparison.OrdinalIgnoreCase)
                 && !configuredConnectionString.StartsWith("postgres://", StringComparison.OrdinalIgnoreCase))
             {
-                return configuredConnectionString;
+                NpgsqlConnectionStringBuilder configuredBuilder = new NpgsqlConnectionStringBuilder(configuredConnectionString);
+                ApplyNetworkDefaults(configuredBuilder);
+                return configuredBuilder.ConnectionString;
             }
 
             Uri uri = new Uri(configuredConnectionString);
@@ -63,7 +65,16 @@ namespace RefaccionariaPOS.Data
                 builder.ChannelBinding = ChannelBinding.Require;
             }
 
+            ApplyNetworkDefaults(builder);
             return builder.ConnectionString;
+        }
+
+        private static void ApplyNetworkDefaults(NpgsqlConnectionStringBuilder builder)
+        {
+            builder.Pooling = false;
+            builder.Timeout = 15;
+            builder.CommandTimeout = 60;
+            builder.KeepAlive = 30;
         }
     }
 }

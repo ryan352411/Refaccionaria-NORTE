@@ -28,6 +28,8 @@ Tambien puedes usar una cadena URI de Neon compatible con Npgsql, por ejemplo:
 
 Reinicia la aplicacion despues de configurar la variable.
 
+La conexion no depende de si la computadora usa WiFi o cable Ethernet. Mientras tenga acceso a internet y Neon permita esa red, `RefaxManager` usa la misma configuracion sin pedir datos nuevos. Si cambias de red y Neon tiene una lista de IPs permitidas, agrega tambien la IP publica de esa red en Neon.
+
 ## Acceso inicial
 
 - Usuario: `admin`

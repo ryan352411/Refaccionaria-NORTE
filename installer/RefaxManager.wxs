@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
-  <Package Name="RefaxManager" Manufacturer="RefaxManager" Version="1.0.3" UpgradeCode="B1B2335E-2332-4603-BD26-0B3B8865024A" Scope="perUser">
+  <Package Name="RefaxManager" Manufacturer="RefaxManager" Version="1.0.4" UpgradeCode="B1B2335E-2332-4603-BD26-0B3B8865024A" Scope="perUser">
     <MajorUpgrade DowngradeErrorMessage="Ya existe una version mas reciente de RefaxManager instalada." />
     <MediaTemplate EmbedCab="yes" />
     <Icon Id="RefaxManagerIcon" SourceFile="builds\RefaxManager\RefaxManager.exe" />
