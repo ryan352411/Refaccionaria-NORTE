@@ -11,6 +11,8 @@ namespace RefaccionariaPOS.Security
         private const string AppName = "RefaxManager";
         private const string RegistryPath = @"Software\ServicioAutomotrizLopezSuite\Licensing\RefaxManager";
         private const string InstallationIdValue = "InstallationId";
+        private const string LastKnownActiveValue = "LastKnownActive";
+        private const string LastValidationValue = "LastValidationUtc";
         private const string LicensingConnectionEnvironmentVariable = "REFACCIONARIA_LICENSE_DB_CONNECTION";
         private const string SharedConnectionEnvironmentVariable = "REFACCIONARIA_DB_CONNECTION";
         private const string AppConnectionEnvironmentVariable = "REFACCIONARIA_NUEVA_DB_CONNECTION";
@@ -24,17 +26,25 @@ namespace RefaccionariaPOS.Security
 
                 if (!isActive)
                 {
+                    SaveActivationState(isActive);
                     message = "Esta instalacion de RefaxManager fue desactivada desde el panel web. Contacta al proveedor.";
                     return false;
                 }
 
+                SaveActivationState(isActive);
                 message = "Instalacion activa.";
                 return true;
             }
             catch (Exception ex)
             {
-                message = "No se pudo validar la activacion de RefaxManager: " + ex.Message;
-                return false;
+                if (WasLastKnownInactive())
+                {
+                    message = "Esta instalacion de RefaxManager fue desactivada desde el panel web. Contacta al proveedor.";
+                    return false;
+                }
+
+                message = "No se pudo contactar el panel de licencias. Se permite el acceso temporalmente: " + ex.Message;
+                return true;
             }
         }
 
@@ -48,14 +58,23 @@ namespace RefaccionariaPOS.Security
             connection.Open();
             using NpgsqlTransaction transaction = connection.BeginTransaction();
 
-            const string insertSql = @"
+            const string upsertSql = @"
                 INSERT INTO app_installations
                     (installation_id, app_code, app_name, machine_name, windows_user, app_version, first_seen_at, last_seen_at, launch_count, is_active)
                 VALUES
                     (@installationId, @appCode, @appName, @machineName, @windowsUser, @appVersion, now(), now(), 1, true)
-                ON CONFLICT (installation_id) DO NOTHING;";
+                ON CONFLICT (installation_id) DO UPDATE
+                SET app_code = EXCLUDED.app_code,
+                    app_name = EXCLUDED.app_name,
+                    machine_name = EXCLUDED.machine_name,
+                    windows_user = EXCLUDED.windows_user,
+                    app_version = EXCLUDED.app_version,
+                    last_seen_at = now(),
+                    launch_count = app_installations.launch_count + 1
+                RETURNING is_active;";
 
-            using (NpgsqlCommand command = new NpgsqlCommand(insertSql, connection, transaction))
+            bool isActive;
+            using (NpgsqlCommand command = new NpgsqlCommand(upsertSql, connection, transaction))
             {
                 command.Parameters.AddWithValue("@installationId", installationId);
                 command.Parameters.AddWithValue("@appCode", AppCode);
@@ -63,19 +82,22 @@ namespace RefaccionariaPOS.Security
                 command.Parameters.AddWithValue("@machineName", machineName);
                 command.Parameters.AddWithValue("@windowsUser", windowsUser);
                 command.Parameters.AddWithValue("@appVersion", appVersion);
-                command.ExecuteNonQuery();
+                isActive = Convert.ToBoolean(command.ExecuteScalar());
             }
 
-            const string activationSql = @"
-                SELECT is_active
-                FROM app_installations
-                WHERE installation_id = @installationId;";
+            const string eventSql = @"
+                INSERT INTO app_installation_events
+                    (installation_id, app_code, event_type, machine_name, windows_user)
+                VALUES
+                    (@installationId, @appCode, 'launch', @machineName, @windowsUser);";
 
-            bool isActive;
-            using (NpgsqlCommand command = new NpgsqlCommand(activationSql, connection, transaction))
+            using (NpgsqlCommand command = new NpgsqlCommand(eventSql, connection, transaction))
             {
                 command.Parameters.AddWithValue("@installationId", installationId);
-                isActive = Convert.ToBoolean(command.ExecuteScalar());
+                command.Parameters.AddWithValue("@appCode", AppCode);
+                command.Parameters.AddWithValue("@machineName", machineName);
+                command.Parameters.AddWithValue("@windowsUser", windowsUser);
+                command.ExecuteNonQuery();
             }
 
             transaction.Commit();
@@ -95,6 +117,20 @@ namespace RefaccionariaPOS.Security
             installationId = Guid.NewGuid();
             key.SetValue(InstallationIdValue, installationId.ToString(), RegistryValueKind.String);
             return installationId;
+        }
+
+        private static void SaveActivationState(bool isActive)
+        {
+            using RegistryKey key = Registry.CurrentUser.CreateSubKey(RegistryPath);
+            key.SetValue(LastKnownActiveValue, isActive ? 1 : 0, RegistryValueKind.DWord);
+            key.SetValue(LastValidationValue, DateTime.UtcNow.ToString("O"), RegistryValueKind.String);
+        }
+
+        private static bool WasLastKnownInactive()
+        {
+            using RegistryKey key = Registry.CurrentUser.CreateSubKey(RegistryPath);
+            object? storedValue = key.GetValue(LastKnownActiveValue);
+            return storedValue is int activeValue && activeValue == 0;
         }
 
         private static string? GetConfiguredConnectionString()
@@ -160,8 +196,8 @@ namespace RefaccionariaPOS.Security
             builder.MaxPoolSize = 20;
             builder.ConnectionLifetime = 120;
             builder.ConnectionIdleLifetime = 30;
-            builder.Timeout = 15;
-            builder.CommandTimeout = 60;
+            builder.Timeout = 5;
+            builder.CommandTimeout = 15;
             builder.KeepAlive = 30;
         }
     }
