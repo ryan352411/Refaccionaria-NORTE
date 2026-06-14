@@ -8,6 +8,8 @@ using System.Drawing;
 using System.Drawing.Printing;
 using System.IO;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -20,6 +22,8 @@ namespace RefaccionariaPOS.Views
         private decimal totalVenta = 0;
         private Producto? productoEnVistaPrevia; // Reutilizamos tu variable perfectamente
         private readonly int usuarioId;
+        private CancellationTokenSource? busquedaCancellation;
+        private int busquedaVersion;
 
         public VentaView(int usuarioId)
         {
@@ -40,6 +44,7 @@ namespace RefaccionariaPOS.Views
         private void TxtBuscarId_TextChanged(object sender, TextChangedEventArgs e)
         {
             string busqueda = txtBuscarId.Text.Trim();
+            CancelarBusquedaPendiente();
 
             // Si hay menos de 2 letras, ocultamos la tablita flotante y la vista previa
             if (busqueda.Length < 2)
@@ -49,53 +54,80 @@ namespace RefaccionariaPOS.Views
                 return;
             }
 
+            busquedaCancellation = new CancellationTokenSource();
+            int versionActual = ++busquedaVersion;
+            _ = BuscarProductosConEsperaAsync(busqueda, versionActual, busquedaCancellation.Token);
+        }
+
+        private async Task BuscarProductosConEsperaAsync(string busqueda, int version, CancellationToken cancellationToken)
+        {
             try
             {
-                List<Producto> resultados = new List<Producto>();
-                DatabaseConnection db = new DatabaseConnection();
+                await Task.Delay(250, cancellationToken);
+                List<Producto> resultados = await BuscarProductosAsync(busqueda, cancellationToken);
 
-                using (NpgsqlConnection conexion = db.GetConnection())
+                if (cancellationToken.IsCancellationRequested || version != busquedaVersion)
                 {
-                    conexion.Open();
-                    // Usamos ILIKE para buscar coincidencias parciales sin importar mayúsculas
-                    string query = @"SELECT codigo_barras, nombre, precio_venta, stock_actual 
-                                     FROM productos 
-                                     WHERE nombre ILIKE @busqueda OR codigo_barras ILIKE @busqueda
-                                     ORDER BY nombre ASC LIMIT 15;";
-
-                    using (NpgsqlCommand cmd = new NpgsqlCommand(query, conexion))
-                    {
-                        cmd.Parameters.AddWithValue("@busqueda", "%" + busqueda + "%");
-
-                        using (NpgsqlDataReader reader = cmd.ExecuteReader())
-                        {
-                            while (reader.Read())
-                            {
-                                resultados.Add(new Producto
-                                {
-                                    CodigoBarras = reader["codigo_barras"].ToString() ?? string.Empty,
-                                    Nombre = reader["nombre"].ToString() ?? string.Empty,
-                                    PrecioVenta = Convert.ToDecimal(reader["precio_venta"]),
-                                    Stock = Convert.ToInt32(reader["stock_actual"])
-                                });
-                            }
-                        }
-                    }
+                    return;
                 }
 
-                // Si encontramos algo, mostramos la lista flotante
                 if (resultados.Count > 0)
                 {
                     dgResultadosBusqueda.ItemsSource = resultados;
                     dgResultadosBusqueda.Visibility = Visibility.Visible;
-                    OcultarVistaPrevia(); // Escondemos el preview mientras escoge de la lista
+                    OcultarVistaPrevia();
+                    return;
                 }
-                else
+
+                dgResultadosBusqueda.Visibility = Visibility.Collapsed;
+            }
+            catch (OperationCanceledException)
+            {
+            }
+            catch
+            {
+                if (!cancellationToken.IsCancellationRequested)
                 {
                     dgResultadosBusqueda.Visibility = Visibility.Collapsed;
                 }
             }
-            catch { /* Manejo silencioso: Ignoramos errores si el usuario teclea extremadamente rápido */ }
+        }
+
+        private static async Task<List<Producto>> BuscarProductosAsync(string busqueda, CancellationToken cancellationToken)
+        {
+            List<Producto> resultados = new List<Producto>();
+            DatabaseConnection db = new DatabaseConnection();
+
+            await using (NpgsqlConnection conexion = db.GetConnection())
+            {
+                await conexion.OpenAsync(cancellationToken);
+
+                const string query = @"SELECT codigo_barras, nombre, precio_venta, stock_actual
+                                       FROM productos
+                                       WHERE nombre ILIKE @busqueda OR codigo_barras ILIKE @busqueda
+                                       ORDER BY nombre ASC LIMIT 15;";
+
+                await using (NpgsqlCommand cmd = new NpgsqlCommand(query, conexion))
+                {
+                    cmd.Parameters.AddWithValue("@busqueda", "%" + busqueda + "%");
+
+                    await using (NpgsqlDataReader reader = await cmd.ExecuteReaderAsync(cancellationToken))
+                    {
+                        while (await reader.ReadAsync(cancellationToken))
+                        {
+                            resultados.Add(new Producto
+                            {
+                                CodigoBarras = reader["codigo_barras"].ToString() ?? string.Empty,
+                                Nombre = reader["nombre"].ToString() ?? string.Empty,
+                                PrecioVenta = Convert.ToDecimal(reader["precio_venta"]),
+                                Stock = Convert.ToInt32(reader["stock_actual"])
+                            });
+                        }
+                    }
+                }
+            }
+
+            return resultados;
         }
 
         // ==========================================================
@@ -118,7 +150,7 @@ namespace RefaccionariaPOS.Views
                 dgResultadosBusqueda.SelectedItem = null;
             }
         }
-        private void TxtBuscarId_KeyDown(object sender, KeyEventArgs e)
+        private async void TxtBuscarId_KeyDown(object sender, KeyEventArgs e)
         {
             if (e.Key != Key.Enter)
             {
@@ -126,7 +158,8 @@ namespace RefaccionariaPOS.Views
             }
 
             e.Handled = true;
-            ProcesarCodigoEscaneado();
+            CancelarBusquedaPendiente();
+            await ProcesarCodigoEscaneadoAsync();
         }
 
         // ==========================================================
@@ -206,7 +239,7 @@ namespace RefaccionariaPOS.Views
             txtBuscarId.Focus();
         }
 
-        private void ProcesarCodigoEscaneado()
+        private async Task ProcesarCodigoEscaneadoAsync()
         {
             string codigo = txtBuscarId.Text.Trim();
             if (string.IsNullOrWhiteSpace(codigo))
@@ -214,7 +247,18 @@ namespace RefaccionariaPOS.Views
                 return;
             }
 
-            Producto? producto = BuscarProductoPorCodigoExacto(codigo);
+            Producto? producto;
+            try
+            {
+                producto = await BuscarProductoPorCodigoExactoAsync(codigo);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("No se pudo consultar el código escaneado: " + ex.Message, "Error de conexión", MessageBoxButton.OK, MessageBoxImage.Error);
+                txtBuscarId.SelectAll();
+                return;
+            }
+
             if (producto == null)
             {
                 MessageBox.Show("No se encontró una refacción con el código escaneado: " + codigo, "Código no encontrado", MessageBoxButton.OK, MessageBoxImage.Warning);
@@ -225,25 +269,25 @@ namespace RefaccionariaPOS.Views
             AgregarProductoAlCarrito(producto, 1);
         }
 
-        private Producto? BuscarProductoPorCodigoExacto(string codigo)
+        private static async Task<Producto?> BuscarProductoPorCodigoExactoAsync(string codigo)
         {
             DatabaseConnection db = new DatabaseConnection();
 
-            using (NpgsqlConnection conexion = db.GetConnection())
+            await using (NpgsqlConnection conexion = db.GetConnection())
             {
-                conexion.Open();
-                string query = @"SELECT codigo_barras, nombre, precio_venta, stock_actual
-                                 FROM productos
-                                 WHERE codigo_barras = @codigo
-                                 LIMIT 1;";
+                await conexion.OpenAsync();
+                const string query = @"SELECT codigo_barras, nombre, precio_venta, stock_actual
+                                       FROM productos
+                                       WHERE codigo_barras = @codigo
+                                       LIMIT 1;";
 
-                using (NpgsqlCommand cmd = new NpgsqlCommand(query, conexion))
+                await using (NpgsqlCommand cmd = new NpgsqlCommand(query, conexion))
                 {
                     cmd.Parameters.AddWithValue("@codigo", codigo);
 
-                    using (NpgsqlDataReader reader = cmd.ExecuteReader())
+                    await using (NpgsqlDataReader reader = await cmd.ExecuteReaderAsync())
                     {
-                        if (!reader.Read())
+                        if (!await reader.ReadAsync())
                         {
                             return null;
                         }
@@ -258,6 +302,14 @@ namespace RefaccionariaPOS.Views
                     }
                 }
             }
+        }
+
+        private void CancelarBusquedaPendiente()
+        {
+            busquedaVersion++;
+            busquedaCancellation?.Cancel();
+            busquedaCancellation?.Dispose();
+            busquedaCancellation = null;
         }
 
         private void ActualizarTotales()

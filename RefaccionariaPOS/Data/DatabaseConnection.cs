@@ -56,8 +56,7 @@ namespace RefaccionariaPOS.Data
                 Database = uri.AbsolutePath.TrimStart('/'),
                 Username = Uri.UnescapeDataString(userInfo[0]),
                 Password = Uri.UnescapeDataString(userInfo[1]),
-                SslMode = SslMode.Require,
-                Pooling = false
+                SslMode = SslMode.Require
             };
 
             if (uri.Query.Contains("channel_binding=require", StringComparison.OrdinalIgnoreCase))
@@ -71,7 +70,11 @@ namespace RefaccionariaPOS.Data
 
         private static void ApplyNetworkDefaults(NpgsqlConnectionStringBuilder builder)
         {
-            builder.Pooling = false;
+            builder.Pooling = true;
+            builder.MinPoolSize = 0;
+            builder.MaxPoolSize = 20;
+            builder.ConnectionLifetime = 120;
+            builder.ConnectionIdleLifetime = 30;
             builder.Timeout = 15;
             builder.CommandTimeout = 60;
             builder.KeepAlive = 30;
