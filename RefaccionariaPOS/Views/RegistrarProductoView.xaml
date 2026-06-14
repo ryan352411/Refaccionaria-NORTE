@@ -1,0 +1,51 @@
+<Window x:Class="RefaccionariaPOS.Views.RegistrarProductoView"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Registrar Refacción"
+        Height="760"
+        Width="560"
+        MinHeight="620"
+        MinWidth="500"
+        ResizeMode="CanResizeWithGrip"
+        WindowStartupLocation="CenterOwner"
+        Background="#F4F6F9">
+
+    <Grid Margin="20">
+        <ScrollViewer VerticalScrollBarVisibility="Auto"
+                      HorizontalScrollBarVisibility="Disabled">
+            <StackPanel Margin="0,0,8,0">
+                <TextBlock x:Name="lblModo" Text="NUEVO PRODUCTO" FontSize="20" FontWeight="Bold" Foreground="#2C3E50" Margin="0,0,0,6" HorizontalAlignment="Center"/>
+                <TextBlock Text="Escanea o escribe el código de barras. Si ya existe, se rellenan los datos." FontSize="12" Foreground="#64748B" TextWrapping="Wrap" Margin="0,0,0,12" TextAlignment="Center"/>
+
+                <TextBlock Text="Código de Barras:" Margin="0,5,0,2" FontWeight="SemiBold"/>
+                <TextBox x:Name="txtCodigo" Height="34" Padding="6" KeyDown="TxtCodigo_KeyDown" LostFocus="TxtCodigo_LostFocus"/>
+
+                <TextBlock Text="Nombre del Producto:" Margin="0,10,0,2" FontWeight="SemiBold"/>
+                <TextBox x:Name="txtNombre" Height="34" Padding="6"/>
+
+                <TextBlock Text="Tipo de Pieza:" Margin="0,10,0,2" FontWeight="SemiBold"/>
+                <ComboBox x:Name="cmbCategoria" Height="36" Padding="6" IsEditable="True"/>
+
+                <TextBlock Text="Descripción:" Margin="0,10,0,2" FontWeight="SemiBold"/>
+                <TextBox x:Name="txtDescripcion" Height="64" TextWrapping="Wrap" AcceptsReturn="True" Padding="6"/>
+
+                <TextBlock Text="Costo Proveedor ($):" Margin="0,10,0,2" FontWeight="SemiBold"/>
+                <TextBox x:Name="txtCosto" Height="34" Padding="6"/>
+
+                <TextBlock Text="Precio Venta ($):" Margin="0,10,0,2" FontWeight="SemiBold"/>
+                <TextBox x:Name="txtPrecioVenta" Height="34" Padding="6"/>
+
+                <TextBlock Text="Stock Mínimo:" Margin="0,10,0,2" FontWeight="SemiBold"/>
+                <TextBox x:Name="txtStockMinimo" Height="34" Padding="6" Text="5"/>
+
+                <TextBlock x:Name="lblStockCaption" Text="Stock Inicial:" Margin="0,10,0,2" FontWeight="SemiBold"/>
+                <TextBox x:Name="txtStock" Height="34" Padding="6"/>
+
+                <UniformGrid Columns="2" Margin="0,20,0,0">
+                    <Button x:Name="btnGuardar" Content="Guardar" Background="#27AE60" Foreground="White" FontWeight="Bold" Height="38" Margin="5" Click="BtnGuardar_Click" Cursor="Hand"/>
+                    <Button Content="Cancelar" Background="#95A5A6" Foreground="White" FontWeight="Bold" Height="38" Margin="5" Click="BtnCancelar_Click" Cursor="Hand"/>
+                </UniformGrid>
+            </StackPanel>
+        </ScrollViewer>
+    </Grid>
+</Window>

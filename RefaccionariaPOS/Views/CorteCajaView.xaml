@@ -1,0 +1,85 @@
+<Window x:Class="RefaccionariaPOS.Views.CorteCajaView"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Corte de Caja"
+        Height="680"
+        Width="1040"
+        MinHeight="620"
+        MinWidth="960"
+        WindowStartupLocation="CenterScreen"
+        Background="#F3F5F8">
+
+    <Grid Margin="24">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <Grid Grid.Row="0" Margin="0,0,0,20">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+
+            <StackPanel>
+                <TextBlock Text="Corte de Caja" FontSize="30" FontWeight="Bold" Foreground="#1E272E"/>
+                <TextBlock Text="Ventas, inversión y utilidad generada por día, mes y año." FontSize="14" Foreground="#64748B" Margin="0,6,0,0"/>
+            </StackPanel>
+
+            <Button Grid.Column="1" Content="Actualizar" Background="#2980B9" Foreground="White" Click="BtnActualizar_Click"/>
+        </Grid>
+
+        <UniformGrid Grid.Row="1" Columns="3" Margin="0,0,0,20">
+            <Border Background="White" CornerRadius="8" Padding="18" Margin="0,0,12,0">
+                <StackPanel>
+                    <TextBlock Text="Hoy" FontSize="16" FontWeight="Bold" Foreground="#1E272E"/>
+                    <TextBlock x:Name="lblHoyVentas" Text="$0.00" FontSize="25" FontWeight="Bold" Foreground="#2ECC71" Margin="0,10,0,0"/>
+                    <TextBlock x:Name="lblHoyInversion" Text="Inversión: $0.00" Foreground="#64748B" Margin="0,8,0,0"/>
+                    <TextBlock x:Name="lblHoyUtilidad" Text="Utilidad: $0.00" Foreground="#334155" FontWeight="SemiBold"/>
+                    <TextBlock x:Name="lblHoyTickets" Text="0 tickets" Foreground="#94A3B8" Margin="0,6,0,0"/>
+                </StackPanel>
+            </Border>
+
+            <Border Background="White" CornerRadius="8" Padding="18" Margin="6,0,6,0">
+                <StackPanel>
+                    <TextBlock Text="Mes actual" FontSize="16" FontWeight="Bold" Foreground="#1E272E"/>
+                    <TextBlock x:Name="lblMesVentas" Text="$0.00" FontSize="25" FontWeight="Bold" Foreground="#2980B9" Margin="0,10,0,0"/>
+                    <TextBlock x:Name="lblMesInversion" Text="Inversión: $0.00" Foreground="#64748B" Margin="0,8,0,0"/>
+                    <TextBlock x:Name="lblMesUtilidad" Text="Utilidad: $0.00" Foreground="#334155" FontWeight="SemiBold"/>
+                    <TextBlock x:Name="lblMesTickets" Text="0 tickets" Foreground="#94A3B8" Margin="0,6,0,0"/>
+                </StackPanel>
+            </Border>
+
+            <Border Background="White" CornerRadius="8" Padding="18" Margin="12,0,0,0">
+                <StackPanel>
+                    <TextBlock Text="Año actual" FontSize="16" FontWeight="Bold" Foreground="#1E272E"/>
+                    <TextBlock x:Name="lblAnioVentas" Text="$0.00" FontSize="25" FontWeight="Bold" Foreground="#6C5CE7" Margin="0,10,0,0"/>
+                    <TextBlock x:Name="lblAnioInversion" Text="Inversión: $0.00" Foreground="#64748B" Margin="0,8,0,0"/>
+                    <TextBlock x:Name="lblAnioUtilidad" Text="Utilidad: $0.00" Foreground="#334155" FontWeight="SemiBold"/>
+                    <TextBlock x:Name="lblAnioTickets" Text="0 tickets" Foreground="#94A3B8" Margin="0,6,0,0"/>
+                </StackPanel>
+            </Border>
+        </UniformGrid>
+
+        <Border Grid.Row="2" Background="White" CornerRadius="8" Padding="18">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+
+                <TextBlock Text="Desglose por origen del día" FontSize="18" FontWeight="Bold" Foreground="#1E272E" Margin="0,0,0,14"/>
+                <DataGrid x:Name="dgOrigenes" Grid.Row="1" AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="Origen" Binding="{Binding Origen}" Width="*"/>
+                        <DataGridTextColumn Header="Tickets" Binding="{Binding Tickets}" Width="100"/>
+                        <DataGridTextColumn Header="Ventas" Binding="{Binding Ventas, StringFormat={}{0:C}}" Width="150"/>
+                        <DataGridTextColumn Header="Inversión" Binding="{Binding Inversion, StringFormat={}{0:C}}" Width="150"/>
+                        <DataGridTextColumn Header="Utilidad" Binding="{Binding Utilidad, StringFormat={}{0:C}}" Width="150"/>
+                    </DataGrid.Columns>
+                </DataGrid>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>

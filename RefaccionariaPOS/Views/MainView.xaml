@@ -1,0 +1,71 @@
+﻿<Window x:Class="RefaccionariaPOS.Views.MainView"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Panel de Control - Refaccionaria Nueva" Height="650" Width="1000"
+        WindowStartupLocation="CenterScreen" Background="#F1F2F6">
+
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="260"/>
+            <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
+
+        <Border Grid.Column="0" Background="#14213D" Padding="18">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+                <StackPanel Grid.Row="0" Margin="0,10,0,34">
+                    <TextBlock Text="REFACCIONARIA" FontSize="24" FontWeight="Black" Foreground="White"/>
+                    <TextBlock Text="Punto de venta" FontSize="12" Foreground="#B8C4D6" Margin="0,4,0,0"/>
+                </StackPanel>
+
+                <StackPanel Grid.Row="1" VerticalAlignment="Top">
+                    <Button x:Name="btnVenta" Content="Punto de Venta" Height="44" Margin="0,5" Background="#2ECC71" Foreground="White" FontSize="15" FontWeight="Bold" BorderThickness="0" Cursor="Hand" Click="BtnVenta_Click"/>
+
+                    <Button x:Name="btnInventario" Content="Inventario / Catálogo" Height="44" Margin="0,5" Background="#243B55" Foreground="White" FontSize="15" FontWeight="SemiBold" BorderThickness="0" Cursor="Hand" Click="BtnInventario_Click"/>
+                    <Button x:Name="btnHistorial" Content="Historial de Ventas" Height="44" Margin="0,5" Background="#243B55" Foreground="White" FontSize="15" FontWeight="SemiBold" BorderThickness="0" Cursor="Hand" Click="BtnHistorial_Click"/>
+                    <Button x:Name="btnCorteCaja" Content="Corte de Caja" Height="44" Margin="0,5" Background="#2980B9" Foreground="White" FontSize="15" FontWeight="Bold" BorderThickness="0" Cursor="Hand" Click="BtnCorteCaja_Click"/>
+                    <Button x:Name="btnUsuarios" Content="Gestionar Personal" Height="44" Margin="0,5" Background="#6C5CE7" Foreground="White" FontSize="15" FontWeight="Bold" BorderThickness="0" Cursor="Hand" Click="BtnUsuarios_Click"/>
+                </StackPanel>
+
+                <StackPanel Grid.Row="2" Margin="0,0,0,10">
+                    <Separator Background="#34495E" Margin="0,0,0,15"/>
+                    <TextBlock Text="Rol activo" FontSize="11" Foreground="#B8C4D6"/>
+                    <TextBlock x:Name="lblRolVisual" Text="Cargando..." FontSize="14" FontWeight="Bold" Foreground="#2ECC71" Margin="0,0,0,10"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <Grid Grid.Column="1" Margin="30">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
+
+            <StackPanel Grid.Row="0" Margin="0,10,0,0">
+                <TextBlock Text="Panel de operación" FontSize="30" FontWeight="Bold" Foreground="#1E272E"/>
+                <TextBlock x:Name="lblSubtitulo" Text="Selecciona una opción del menú para empezar." FontSize="14" Foreground="#6B7785" Margin="0,8,0,0"/>
+            </StackPanel>
+
+            <UniformGrid Grid.Row="1" Columns="2" Margin="0,30,0,0" VerticalAlignment="Top" Height="150">
+                <Border Background="White" CornerRadius="8" Margin="10" Padding="20">
+                    <StackPanel VerticalAlignment="Center">
+                        <TextBlock Text="Acceso rápido" FontSize="16" FontWeight="Bold" Foreground="#1E272E"/>
+                        <TextBlock Text="El escáner de barras está activo en la caja de cobro." FontSize="13" Foreground="#7F8C8D" Margin="0,5,0,0" TextWrapping="Wrap"/>
+                    </StackPanel>
+                </Border>
+
+                <Border Background="White" CornerRadius="8" Margin="10" Padding="20">
+                    <StackPanel VerticalAlignment="Center">
+                        <TextBlock Text="Base de datos" FontSize="16" FontWeight="Bold" Foreground="#1E272E"/>
+                        <TextBlock Text="Conexión con Neon PostgreSQL configurada para ventas e inventario." FontSize="13" Foreground="#7F8C8D" Margin="0,5,0,0" TextWrapping="Wrap"/>
+                    </StackPanel>
+                </Border>
+            </UniformGrid>
+        </Grid>
+    </Grid>
+</Window>
