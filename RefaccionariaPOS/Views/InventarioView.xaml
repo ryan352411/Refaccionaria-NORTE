@@ -44,8 +44,9 @@
             </WrapPanel>
         </Border>
 
-        <DataGrid x:Name="dgInventario" Grid.Row="2" AutoGenerateColumns="False" 
-                  IsReadOnly="True" Background="White" RowHeight="30" AlternatingRowBackground="#ecf0f1">
+        <DataGrid x:Name="dgInventario" Grid.Row="2" AutoGenerateColumns="False"
+                  IsReadOnly="True" Background="White" RowHeight="30" AlternatingRowBackground="#ecf0f1"
+                  LoadingRow="DgInventario_LoadingRow">
 
             <DataGrid.ContextMenu>
                 <ContextMenu>
@@ -61,7 +62,7 @@
                 <DataGridTextColumn Header="Precio Venta" Binding="{Binding PrecioVenta, StringFormat=C}" Width="100"/>
                 <DataGridTextColumn Header="Stock" Binding="{Binding Stock}" Width="80"/>
                 <DataGridTextColumn Header="Mínimo" Binding="{Binding StockMinimo}" Width="80"/>
-                <DataGridTextColumn Header="Estado" Binding="{Binding EstadoStock}" Width="110"/>
+                <DataGridTextColumn Header="Estado" Binding="{Binding EstadoStock}" Width="120"/>
             </DataGrid.Columns>
         </DataGrid>
     </Grid>

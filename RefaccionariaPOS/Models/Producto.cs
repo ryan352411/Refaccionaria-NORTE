@@ -11,7 +11,18 @@
         public decimal PrecioVenta { get; set; }
         public int Stock { get; set; } // Se usa como cantidad en el carrito
         public int StockMinimo { get; set; } = 5;
-        public string EstadoStock => Stock <= StockMinimo ? "Bajo stock" : "Disponible";
+        public string EstadoStock
+        {
+            get
+            {
+                if (Stock == 0)
+                {
+                    return "Sin stock";
+                }
+
+                return Stock <= StockMinimo ? "Bajo stock" : "Disponible";
+            }
+        }
 
         // NUEVO: Propiedad automática para la vista del vendedor
         public decimal Subtotal => PrecioVenta * Stock;

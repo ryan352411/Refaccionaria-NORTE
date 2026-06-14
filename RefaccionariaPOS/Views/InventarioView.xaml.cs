@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Media;
 
 namespace RefaccionariaPOS.Views
 {
@@ -37,6 +38,11 @@ namespace RefaccionariaPOS.Views
               AND column_name IN ('stock_minimo', 'categoria');";
 
         private readonly ObservableCollection<string> categorias = new();
+        private static readonly Brush FilaDisponible = Brushes.White;
+        private static readonly Brush FilaDisponibleAlterna = new SolidColorBrush(Color.FromRgb(236, 240, 241));
+        private static readonly Brush FilaBajoStock = new SolidColorBrush(Color.FromRgb(255, 237, 213));
+        private static readonly Brush FilaSinStock = new SolidColorBrush(Color.FromRgb(254, 226, 226));
+        private static readonly Brush TextoInventario = new SolidColorBrush(Color.FromRgb(30, 41, 59));
         private readonly bool soloLectura;
         private bool filtrosListos;
 
@@ -151,6 +157,30 @@ namespace RefaccionariaPOS.Views
             cmbCategoria.SelectedIndex = 0;
             chkBajoStock.IsChecked = false;
             CargarProductos();
+        }
+
+        private void DgInventario_LoadingRow(object sender, DataGridRowEventArgs e)
+        {
+            if (e.Row.Item is not Producto producto)
+            {
+                return;
+            }
+
+            e.Row.Foreground = TextoInventario;
+
+            if (producto.Stock == 0)
+            {
+                e.Row.Background = FilaSinStock;
+                return;
+            }
+
+            if (producto.Stock <= producto.StockMinimo)
+            {
+                e.Row.Background = FilaBajoStock;
+                return;
+            }
+
+            e.Row.Background = e.Row.GetIndex() % 2 == 0 ? FilaDisponible : FilaDisponibleAlterna;
         }
 
         private void MenuActualizarStock_Click(object sender, RoutedEventArgs e)
