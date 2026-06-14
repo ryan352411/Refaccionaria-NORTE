@@ -26,6 +26,16 @@
                 <StackPanel Grid.Row="1" VerticalAlignment="Top">
                     <Button x:Name="btnVenta" Content="Punto de Venta" Height="44" Margin="0,5" Background="#2ECC71" Foreground="White" FontSize="15" FontWeight="Bold" BorderThickness="0" Cursor="Hand" Click="BtnVenta_Click"/>
 
+                    <Button x:Name="btnNotificaciones" Height="44" Margin="0,5" Background="#F59E0B" Foreground="White" FontSize="15" FontWeight="Bold" BorderThickness="0" Cursor="Hand" Click="BtnNotificaciones_Click">
+                        <DockPanel LastChildFill="True">
+                            <TextBlock Text="🔔" FontSize="17" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                            <TextBlock Text="Notificaciones" VerticalAlignment="Center"/>
+                            <Border x:Name="brdContadorAlertas" DockPanel.Dock="Right" MinWidth="28" Height="22" CornerRadius="11" Background="#DC2626" Padding="7,1" Margin="8,0,0,0">
+                                <TextBlock x:Name="lblContadorAlertas" Text="0" FontSize="12" FontWeight="Black" Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            </Border>
+                        </DockPanel>
+                    </Button>
+
                     <Button x:Name="btnInventario" Content="Inventario / Catálogo" Height="44" Margin="0,5" Background="#243B55" Foreground="White" FontSize="15" FontWeight="SemiBold" BorderThickness="0" Cursor="Hand" Click="BtnInventario_Click"/>
                     <Button x:Name="btnHistorial" Content="Historial de Ventas" Height="44" Margin="0,5" Background="#243B55" Foreground="White" FontSize="15" FontWeight="SemiBold" BorderThickness="0" Cursor="Hand" Click="BtnHistorial_Click"/>
                     <Button x:Name="btnCorteCaja" Content="Corte de Caja" Height="44" Margin="0,5" Background="#2980B9" Foreground="White" FontSize="15" FontWeight="Bold" BorderThickness="0" Cursor="Hand" Click="BtnCorteCaja_Click"/>
