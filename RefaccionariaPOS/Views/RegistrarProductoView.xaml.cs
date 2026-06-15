@@ -3,6 +3,7 @@ using RefaccionariaPOS.Data;
 using System;
 using System.Collections.Generic;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Input;
 
 namespace RefaccionariaPOS.Views
@@ -14,8 +15,8 @@ namespace RefaccionariaPOS.Views
 
         private const string QueryInsertarProducto = @"
             INSERT INTO productos
-            (codigo_barras, nombre, descripcion, costo_proveedor, precio_venta, stock_actual, stock_minimo, categoria)
-            VALUES (@codigo, @nombre, @desc, @costo, @venta, @stock, @stockMinimo, @categoria);";
+            (codigo_barras, nombre, descripcion, costo_proveedor, precio_venta, stock_actual, stock_minimo, categoria, imagen_url, tipo_venta)
+            VALUES (@codigo, @nombre, @desc, @costo, @venta, @stock, @stockMinimo, @categoria, @imagenUrl, @tipoVenta);";
 
         private const string QueryActualizarProducto = @"
             UPDATE productos
@@ -25,11 +26,15 @@ namespace RefaccionariaPOS.Views
                 precio_venta = @venta,
                 stock_minimo = @stockMinimo,
                 categoria = @categoria,
+                imagen_url = @imagenUrl,
+                tipo_venta = @tipoVenta,
                 stock_actual = stock_actual + @stockAgregar
             WHERE id = @id;";
 
         private const string QueryBuscarProducto = @"
-            SELECT id, nombre, descripcion, costo_proveedor, precio_venta, stock_minimo, categoria
+            SELECT id, nombre, descripcion, costo_proveedor, precio_venta, stock_minimo, categoria,
+                   COALESCE(imagen_url, '') AS imagen_url,
+                   COALESCE(tipo_venta, 'Unidad') AS tipo_venta
             FROM productos
             WHERE codigo_barras = @codigo
             LIMIT 1;";
@@ -45,7 +50,7 @@ namespace RefaccionariaPOS.Views
             FROM information_schema.columns
             WHERE table_schema = 'public'
               AND table_name = 'productos'
-              AND column_name IN ('stock_minimo', 'categoria');";
+              AND column_name IN ('stock_minimo', 'categoria', 'imagen_url', 'tipo_venta');";
 
         private int? productoExistenteId;
         private string ultimoCodigoConsultado = string.Empty;
@@ -60,7 +65,7 @@ namespace RefaccionariaPOS.Views
 
         private void BtnGuardar_Click(object sender, RoutedEventArgs e)
         {
-            if (!TryLeerFormulario(out decimal costo, out decimal precioVenta, out int stockMinimo, out int stock))
+            if (!TryLeerFormulario(out decimal costo, out decimal precioVenta, out decimal stockMinimo, out decimal stock))
             {
                 return;
             }
@@ -82,7 +87,7 @@ namespace RefaccionariaPOS.Views
             }
         }
 
-        private bool TryLeerFormulario(out decimal costo, out decimal precioVenta, out int stockMinimo, out int stock)
+        private bool TryLeerFormulario(out decimal costo, out decimal precioVenta, out decimal stockMinimo, out decimal stock)
         {
             costo = 0;
             precioVenta = 0;
@@ -107,13 +112,13 @@ namespace RefaccionariaPOS.Views
                 return false;
             }
 
-            if (!int.TryParse(txtStockMinimo.Text, out stockMinimo) || stockMinimo < 0)
+            if (!decimal.TryParse(txtStockMinimo.Text, out stockMinimo) || stockMinimo < 0)
             {
                 MessageBox.Show("Ingresa un stock mínimo válido.", "Aviso", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return false;
             }
 
-            if (int.TryParse(txtStock.Text, out stock) && stock >= 0)
+            if (decimal.TryParse(txtStock.Text, out stock) && stock >= 0)
             {
                 return true;
             }
@@ -124,7 +129,7 @@ namespace RefaccionariaPOS.Views
             return false;
         }
 
-        private void GuardarProducto(decimal costo, decimal precioVenta, int stockMinimo, int stock)
+        private void GuardarProducto(decimal costo, decimal precioVenta, decimal stockMinimo, decimal stock)
         {
             if (productoExistenteId.HasValue)
             {
@@ -137,7 +142,7 @@ namespace RefaccionariaPOS.Views
             MessageBox.Show("Producto registrado con éxito.", "Éxito", MessageBoxButton.OK, MessageBoxImage.Information);
         }
 
-        private void InsertarProductoNuevo(decimal costo, decimal precioVenta, int stockMinimo, int stock)
+        private void InsertarProductoNuevo(decimal costo, decimal precioVenta, decimal stockMinimo, decimal stock)
         {
             DatabaseConnection db = new DatabaseConnection();
             using (NpgsqlConnection conexion = db.GetConnection())
@@ -153,7 +158,7 @@ namespace RefaccionariaPOS.Views
             }
         }
 
-        private void ActualizarProductoExistente(int idProducto, decimal costo, decimal precioVenta, int stockMinimo, int stockAgregar)
+        private void ActualizarProductoExistente(int idProducto, decimal costo, decimal precioVenta, decimal stockMinimo, decimal stockAgregar)
         {
             DatabaseConnection db = new DatabaseConnection();
             using (NpgsqlConnection conexion = db.GetConnection())
@@ -170,7 +175,7 @@ namespace RefaccionariaPOS.Views
             }
         }
 
-        private void AgregarParametrosProducto(NpgsqlCommand cmd, decimal costo, decimal precioVenta, int stockMinimo)
+        private void AgregarParametrosProducto(NpgsqlCommand cmd, decimal costo, decimal precioVenta, decimal stockMinimo)
         {
             cmd.Parameters.AddWithValue("@codigo", txtCodigo.Text.Trim());
             cmd.Parameters.AddWithValue("@nombre", txtNombre.Text.Trim());
@@ -179,6 +184,8 @@ namespace RefaccionariaPOS.Views
             cmd.Parameters.AddWithValue("@venta", precioVenta);
             cmd.Parameters.AddWithValue("@stockMinimo", stockMinimo);
             cmd.Parameters.AddWithValue("@categoria", ObtenerCategoria());
+            cmd.Parameters.AddWithValue("@imagenUrl", txtImagenUrl.Text.Trim());
+            cmd.Parameters.AddWithValue("@tipoVenta", ObtenerTipoVenta());
         }
 
         private void TxtCodigo_KeyDown(object sender, KeyEventArgs e)
@@ -255,8 +262,10 @@ namespace RefaccionariaPOS.Views
             txtDescripcion.Text = reader["descripcion"].ToString() ?? string.Empty;
             txtCosto.Text = Convert.ToDecimal(reader["costo_proveedor"]).ToString("0.##");
             txtPrecioVenta.Text = Convert.ToDecimal(reader["precio_venta"]).ToString("0.##");
-            txtStockMinimo.Text = Convert.ToInt32(reader["stock_minimo"]).ToString();
+            txtStockMinimo.Text = Convert.ToDecimal(reader["stock_minimo"]).ToString("0.###");
             cmbCategoria.Text = reader["categoria"].ToString() ?? CategoriaGeneral;
+            txtImagenUrl.Text = reader["imagen_url"].ToString() ?? string.Empty;
+            SeleccionarTipoVenta(reader["tipo_venta"].ToString() ?? "Unidad");
             txtStock.Clear();
 
             lblModo.Text = "PRODUCTO EXISTENTE";
@@ -346,11 +355,13 @@ namespace RefaccionariaPOS.Views
                     using (NpgsqlCommand cmd = new NpgsqlCommand(QueryVerificarColumnas, conexion))
                     {
                         int columnas = Convert.ToInt32(cmd.ExecuteScalar());
-                        if (columnas < 2)
+                        if (columnas < 4)
                         {
-                            MessageBox.Show("Faltan las columnas categoria o stock_minimo en productos. Ejecuta la migración de inventario antes de registrar productos.", "Producto", MessageBoxButton.OK, MessageBoxImage.Warning);
+                            AsegurarColumnasProducto(conexion);
                         }
                     }
+
+                    AsegurarColumnasProducto(conexion);
                 }
             }
             catch (Exception ex)
@@ -362,6 +373,43 @@ namespace RefaccionariaPOS.Views
         private void BtnCancelar_Click(object sender, RoutedEventArgs e)
         {
             Close();
+        }
+
+        private string ObtenerTipoVenta()
+        {
+            return (cmbTipoVenta.SelectedItem as ComboBoxItem)?.Content.ToString() ?? "Unidad";
+        }
+
+        private void SeleccionarTipoVenta(string tipoVenta)
+        {
+            foreach (object item in cmbTipoVenta.Items)
+            {
+                if (item is ComboBoxItem comboBoxItem
+                    && string.Equals(comboBoxItem.Content.ToString(), tipoVenta, StringComparison.OrdinalIgnoreCase))
+                {
+                    cmbTipoVenta.SelectedItem = comboBoxItem;
+                    return;
+                }
+            }
+
+            cmbTipoVenta.SelectedIndex = 0;
+        }
+
+        private static void AsegurarColumnasProducto(NpgsqlConnection conexion)
+        {
+            const string query = @"
+                ALTER TABLE productos
+                    ADD COLUMN IF NOT EXISTS imagen_url text NOT NULL DEFAULT '',
+                    ADD COLUMN IF NOT EXISTS tipo_venta varchar(20) NOT NULL DEFAULT 'Unidad';
+
+                ALTER TABLE productos
+                    ALTER COLUMN stock_actual TYPE numeric(12, 3) USING stock_actual::numeric,
+                    ALTER COLUMN stock_minimo TYPE numeric(12, 3) USING stock_minimo::numeric;";
+
+            using (NpgsqlCommand cmd = new NpgsqlCommand(query, conexion))
+            {
+                cmd.ExecuteNonQuery();
+            }
         }
     }
 }

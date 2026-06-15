@@ -7,10 +7,12 @@
         public string Nombre { get; set; } = string.Empty;
         public string Descripcion { get; set; } = string.Empty;
         public string Categoria { get; set; } = "General";
+        public string ImagenUrl { get; set; } = string.Empty;
+        public string TipoVenta { get; set; } = "Unidad";
         public decimal PrecioCompra { get; set; } // Mapeado a costo_proveedor
         public decimal PrecioVenta { get; set; }
-        public int Stock { get; set; } // Se usa como cantidad en el carrito
-        public int StockMinimo { get; set; } = 5;
+        public decimal Stock { get; set; } // Se usa como cantidad disponible o cantidad en vistas.
+        public decimal StockMinimo { get; set; } = 5;
         public string EstadoStock
         {
             get

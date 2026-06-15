@@ -1,6 +1,7 @@
 ﻿using Npgsql;
 using RefaccionariaPOS.Data;
 using RefaccionariaPOS.Models;
+using RefaccionariaPOS.Services;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -12,6 +13,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 
 namespace RefaccionariaPOS.Views
@@ -22,20 +24,54 @@ namespace RefaccionariaPOS.Views
         private decimal totalVenta = 0;
         private Producto? productoEnVistaPrevia; // Reutilizamos tu variable perfectamente
         private readonly int usuarioId;
+        private readonly string codigoInicial;
         private CancellationTokenSource? busquedaCancellation;
         private int busquedaVersion;
+        private bool activada;
 
-        public VentaView(int usuarioId)
+        public VentaView(int usuarioId, string codigoInicial = "")
         {
             InitializeComponent();
             this.usuarioId = usuarioId;
+            this.codigoInicial = codigoInicial;
             dgCarrito.ItemsSource = listaCarrito;
+            PreviewKeyDown += VentaView_PreviewKeyDown;
+            AsegurarColumnasPuntoVenta();
+            CargarClientesFrecuentes();
             CargarImpresoras();
-            Loaded += (_, _) => txtBuscarId.Focus();
+            Loaded += VentaView_Loaded;
         }
 
         public VentaView() : this(0)
         {
+        }
+
+        private async void VentaView_Loaded(object sender, RoutedEventArgs e)
+        {
+            await ActivarAsync();
+        }
+
+        public async void ActivarDesdePanel()
+        {
+            await ActivarAsync();
+        }
+
+        private async Task ActivarAsync()
+        {
+            if (activada)
+            {
+                return;
+            }
+
+            activada = true;
+            txtBuscarId.Focus();
+            if (string.IsNullOrWhiteSpace(codigoInicial))
+            {
+                return;
+            }
+
+            txtBuscarId.Text = codigoInicial;
+            await ProcesarCodigoEscaneadoAsync();
         }
 
         // ==========================================================
@@ -102,7 +138,8 @@ namespace RefaccionariaPOS.Views
             {
                 await conexion.OpenAsync(cancellationToken);
 
-                const string query = @"SELECT codigo_barras, nombre, precio_venta, stock_actual
+                const string query = @"SELECT id, codigo_barras, nombre, precio_venta, stock_actual,
+                                              COALESCE(tipo_venta, 'Unidad') AS tipo_venta
                                        FROM productos
                                        WHERE nombre ILIKE @busqueda OR codigo_barras ILIKE @busqueda
                                        ORDER BY nombre ASC LIMIT 15;";
@@ -120,7 +157,9 @@ namespace RefaccionariaPOS.Views
                                 CodigoBarras = reader["codigo_barras"].ToString() ?? string.Empty,
                                 Nombre = reader["nombre"].ToString() ?? string.Empty,
                                 PrecioVenta = Convert.ToDecimal(reader["precio_venta"]),
-                                Stock = Convert.ToInt32(reader["stock_actual"])
+                                Stock = Convert.ToDecimal(reader["stock_actual"]),
+                                TipoVenta = reader["tipo_venta"].ToString() ?? "Unidad",
+                                Id = Convert.ToInt32(reader["id"])
                             });
                         }
                     }
@@ -170,7 +209,7 @@ namespace RefaccionariaPOS.Views
             lblPreviewCodigo.Text = p.CodigoBarras;
             lblPreviewNombre.Text = p.Nombre;
             lblPreviewPrecio.Text = string.Format("{0:C}", p.PrecioVenta);
-            lblPreviewStock.Text = p.Stock.ToString();
+            lblPreviewStock.Text = FormatearCantidad(p.Stock);
             txtCantidadAgregar.Text = "1";
 
 
@@ -192,16 +231,22 @@ namespace RefaccionariaPOS.Views
         {
             if (productoEnVistaPrevia == null) return;
 
-            if (!int.TryParse(txtCantidadAgregar.Text, out int cantidad) || cantidad <= 0)
+            if (!decimal.TryParse(txtCantidadAgregar.Text, out decimal cantidad) || cantidad <= 0)
             {
                 MessageBox.Show("Ingresa una cantidad válida a agregar.", "Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            if (productoEnVistaPrevia.TipoVenta.Equals("Unidad", StringComparison.OrdinalIgnoreCase) && !EsCantidadEntera(cantidad))
+            {
+                MessageBox.Show("Este producto se vende por unidad. Ingresa una cantidad entera.", "Cantidad", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
 
             AgregarProductoAlCarrito(productoEnVistaPrevia, cantidad);
         }
 
-        private void AgregarProductoAlCarrito(Producto producto, int cantidad)
+        private void AgregarProductoAlCarrito(Producto producto, decimal cantidad)
         {
             if (cantidad > producto.Stock)
             {
@@ -226,6 +271,7 @@ namespace RefaccionariaPOS.Views
             {
                 listaCarrito.Add(new ProductoCarrito
                 {
+                    ProductoId = producto.Id,
                     CodigoBarras = producto.CodigoBarras,
                     Nombre = producto.Nombre,
                     PrecioVenta = producto.PrecioVenta,
@@ -237,6 +283,41 @@ namespace RefaccionariaPOS.Views
             txtBuscarId.Clear();
             OcultarVistaPrevia();
             txtBuscarId.Focus();
+        }
+
+        private void VentaView_PreviewKeyDown(object sender, KeyEventArgs e)
+        {
+            if (Keyboard.FocusedElement is TextBoxBase)
+            {
+                return;
+            }
+
+            if (dgCarrito.SelectedItem is not ProductoCarrito item)
+            {
+                return;
+            }
+
+            if (e.Key == Key.Add || e.Key == Key.OemPlus)
+            {
+                item.Cantidad++;
+                dgCarrito.Items.Refresh();
+                ActualizarTotales();
+                e.Handled = true;
+                return;
+            }
+
+            if (e.Key == Key.Subtract || e.Key == Key.OemMinus)
+            {
+                item.Cantidad--;
+                if (item.Cantidad <= 0)
+                {
+                    listaCarrito.Remove(item);
+                }
+
+                dgCarrito.Items.Refresh();
+                ActualizarTotales();
+                e.Handled = true;
+            }
         }
 
         private async Task ProcesarCodigoEscaneadoAsync()
@@ -276,7 +357,8 @@ namespace RefaccionariaPOS.Views
             await using (NpgsqlConnection conexion = db.GetConnection())
             {
                 await conexion.OpenAsync();
-                const string query = @"SELECT codigo_barras, nombre, precio_venta, stock_actual
+                const string query = @"SELECT id, codigo_barras, nombre, precio_venta, stock_actual,
+                                              COALESCE(tipo_venta, 'Unidad') AS tipo_venta
                                        FROM productos
                                        WHERE codigo_barras = @codigo
                                        LIMIT 1;";
@@ -297,7 +379,9 @@ namespace RefaccionariaPOS.Views
                             CodigoBarras = reader["codigo_barras"].ToString() ?? string.Empty,
                             Nombre = reader["nombre"].ToString() ?? string.Empty,
                             PrecioVenta = Convert.ToDecimal(reader["precio_venta"]),
-                            Stock = Convert.ToInt32(reader["stock_actual"])
+                            Stock = Convert.ToDecimal(reader["stock_actual"]),
+                            TipoVenta = reader["tipo_venta"].ToString() ?? "Unidad",
+                            Id = Convert.ToInt32(reader["id"])
                         };
                     }
                 }
@@ -316,6 +400,113 @@ namespace RefaccionariaPOS.Views
         {
             totalVenta = listaCarrito.Sum(item => item.Subtotal);
             lblTotalCarrito.Text = string.Format("{0:C}", totalVenta);
+            ActualizarCambio();
+        }
+
+        private void TxtEfectivoRecibido_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            ActualizarCambio();
+        }
+
+        private void CmbMetodoPago_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            ActualizarCambio();
+        }
+
+        private void ActualizarCambio()
+        {
+            if (txtEfectivoRecibido == null || lblCambio == null || cmbMetodoPago == null)
+            {
+                return;
+            }
+
+            bool esEfectivo = ObtenerMetodoPago().Equals("Efectivo", StringComparison.OrdinalIgnoreCase);
+            txtEfectivoRecibido.IsEnabled = esEfectivo;
+
+            if (!esEfectivo)
+            {
+                lblCambio.Text = "$0.00";
+                return;
+            }
+
+            decimal recibido = LeerEfectivoRecibido();
+            decimal cambio = Math.Max(0, recibido - totalVenta);
+            lblCambio.Text = cambio.ToString("C");
+        }
+
+        private string ObtenerMetodoPago()
+        {
+            return (cmbMetodoPago.SelectedItem as ComboBoxItem)?.Content.ToString() ?? "Efectivo";
+        }
+
+        private decimal LeerEfectivoRecibido()
+        {
+            return decimal.TryParse(txtEfectivoRecibido.Text, out decimal recibido) && recibido > 0
+                ? recibido
+                : 0;
+        }
+
+        private int? ObtenerClienteSeleccionadoId()
+        {
+            return cmbClientes.SelectedValue is int clienteId && clienteId > 0
+                ? clienteId
+                : null;
+        }
+
+        private void CargarClientesFrecuentes()
+        {
+            List<ClienteVentaOpcion> clientes = new()
+            {
+                new ClienteVentaOpcion { Id = 0, Nombre = "Sin cliente" }
+            };
+
+            try
+            {
+                DatabaseConnection db = new DatabaseConnection();
+                using (NpgsqlConnection conexion = db.GetConnection())
+                {
+                    conexion.Open();
+
+                    const string query = @"
+                        SELECT id, nombre
+                        FROM clientes
+                        ORDER BY nombre ASC;";
+
+                    using (NpgsqlCommand cmd = new NpgsqlCommand(query, conexion))
+                    using (NpgsqlDataReader reader = cmd.ExecuteReader())
+                    {
+                        while (reader.Read())
+                        {
+                            clientes.Add(new ClienteVentaOpcion
+                            {
+                                Id = Convert.ToInt32(reader["id"]),
+                                Nombre = reader["nombre"].ToString() ?? string.Empty
+                            });
+                        }
+                    }
+                }
+            }
+            catch
+            {
+            }
+
+            cmbClientes.ItemsSource = clientes;
+            cmbClientes.SelectedValue = 0;
+        }
+
+        private void SumarPuntoClienteSeleccionado(NpgsqlConnection conexion, NpgsqlTransaction transaccion)
+        {
+            int? clienteId = ObtenerClienteSeleccionadoId();
+            if (!clienteId.HasValue)
+            {
+                return;
+            }
+
+            using (NpgsqlCommand cmd = new NpgsqlCommand("UPDATE clientes SET puntos = puntos + 1 WHERE id = @clienteId;", conexion, transaccion))
+            {
+                cmd.Parameters.AddWithValue("@clienteId", clienteId.Value);
+                cmd.ExecuteNonQuery();
+            }
         }
 
         // =========================================================================
@@ -331,6 +522,21 @@ namespace RefaccionariaPOS.Views
 
             int ventaIdGenerado = 0;
             int folioGeneradoBaseDatos = 0;
+            string metodoPago = ObtenerMetodoPago();
+            decimal efectivoRecibido = metodoPago.Equals("Efectivo", StringComparison.OrdinalIgnoreCase)
+                ? LeerEfectivoRecibido()
+                : 0;
+            decimal cambioEntregado = metodoPago.Equals("Efectivo", StringComparison.OrdinalIgnoreCase)
+                ? efectivoRecibido - totalVenta
+                : 0;
+
+            if (metodoPago.Equals("Efectivo", StringComparison.OrdinalIgnoreCase) && efectivoRecibido < totalVenta)
+            {
+                MessageBox.Show("El efectivo recibido no cubre el total de la venta.", "Efectivo insuficiente", MessageBoxButton.OK, MessageBoxImage.Warning);
+                txtEfectivoRecibido.Focus();
+                return;
+            }
+
             DatabaseConnection db = new DatabaseConnection();
 
             using (NpgsqlConnection conexion = db.GetConnection())
@@ -342,17 +548,20 @@ namespace RefaccionariaPOS.Views
                     try
                     {
                         string queryVenta = @"
-                    INSERT INTO ventas (usuario_id, total, fecha_venta, estado, metodo_pago)
-                    VALUES (@usuarioId, @total, @fecha, @estado, @metodoPago)
+                    INSERT INTO ventas (usuario_id, cliente_id, total, fecha_venta, estado, metodo_pago, efectivo_recibido, cambio_entregado)
+                    VALUES (@usuarioId, @clienteId, @total, @fecha, @estado, @metodoPago, @efectivoRecibido, @cambioEntregado)
                     RETURNING id, folio;";
 
                         using (NpgsqlCommand cmdVenta = new NpgsqlCommand(queryVenta, conexion, transaccion))
                         {
                             cmdVenta.Parameters.AddWithValue("@usuarioId", usuarioId == 0 ? DBNull.Value : (object)usuarioId);
+                            cmdVenta.Parameters.AddWithValue("@clienteId", ObtenerClienteSeleccionadoId().HasValue ? (object)ObtenerClienteSeleccionadoId()!.Value : DBNull.Value);
                             cmdVenta.Parameters.AddWithValue("@total", totalVenta);
                             cmdVenta.Parameters.AddWithValue("@fecha", DateTime.Now);
                             cmdVenta.Parameters.AddWithValue("@estado", "Completada");
-                            cmdVenta.Parameters.AddWithValue("@metodoPago", "Mostrador");
+                            cmdVenta.Parameters.AddWithValue("@metodoPago", metodoPago);
+                            cmdVenta.Parameters.AddWithValue("@efectivoRecibido", efectivoRecibido);
+                            cmdVenta.Parameters.AddWithValue("@cambioEntregado", cambioEntregado);
 
                             using (NpgsqlDataReader reader = cmdVenta.ExecuteReader())
                             {
@@ -366,49 +575,59 @@ namespace RefaccionariaPOS.Views
 
                         foreach (var item in listaCarrito)
                         {
-                            int productoId = 0;
+                            int? productoId = item.ProductoId > 0 ? item.ProductoId : null;
 
-                            string queryProducto = @"
+                            if (!item.EsArticuloComun)
+                            {
+                                string queryProducto = @"
                         SELECT id, stock_actual
                         FROM productos
                         WHERE codigo_barras = @codigo;";
 
-                            using (NpgsqlCommand cmdProducto = new NpgsqlCommand(queryProducto, conexion, transaccion))
-                            {
-                                cmdProducto.Parameters.AddWithValue("@codigo", item.CodigoBarras);
-
-                                using (NpgsqlDataReader reader = cmdProducto.ExecuteReader())
+                                using (NpgsqlCommand cmdProducto = new NpgsqlCommand(queryProducto, conexion, transaccion))
                                 {
-                                    if (!reader.Read())
-                                    {
-                                        throw new Exception("No se encontró el producto con código: " + item.CodigoBarras);
-                                    }
+                                    cmdProducto.Parameters.AddWithValue("@codigo", item.CodigoBarras);
 
-                                    productoId = Convert.ToInt32(reader["id"]);
-                                    int stockActual = Convert.ToInt32(reader["stock_actual"]);
-
-                                    if (stockActual < item.Cantidad)
+                                    using (NpgsqlDataReader reader = cmdProducto.ExecuteReader())
                                     {
-                                        throw new Exception("Stock insuficiente para el producto: " + item.Nombre);
+                                        if (!reader.Read())
+                                        {
+                                            throw new Exception("No se encontró el producto con código: " + item.CodigoBarras);
+                                        }
+
+                                        productoId = Convert.ToInt32(reader["id"]);
+                                    decimal stockActual = Convert.ToDecimal(reader["stock_actual"]);
+
+                                        if (stockActual < item.Cantidad)
+                                        {
+                                            throw new Exception("Stock insuficiente para el producto: " + item.Nombre);
+                                        }
                                     }
                                 }
                             }
 
                             string queryDetalle = @"
                         INSERT INTO detalles_venta
-                        (venta_id, producto_id, cantidad, precio_unitario, subtotal)
+                        (venta_id, producto_id, cantidad, precio_unitario, subtotal, descripcion_manual, tipo_articulo)
                         VALUES
-                        (@ventaId, @productoId, @cantidad, @precioUnitario, @subtotal);";
+                        (@ventaId, @productoId, @cantidad, @precioUnitario, @subtotal, @descripcionManual, @tipoArticulo);";
 
                             using (NpgsqlCommand cmdDetalle = new NpgsqlCommand(queryDetalle, conexion, transaccion))
                             {
                                 cmdDetalle.Parameters.AddWithValue("@ventaId", ventaIdGenerado);
-                                cmdDetalle.Parameters.AddWithValue("@productoId", productoId);
+                                cmdDetalle.Parameters.AddWithValue("@productoId", productoId.HasValue ? (object)productoId.Value : DBNull.Value);
                                 cmdDetalle.Parameters.AddWithValue("@cantidad", item.Cantidad);
                                 cmdDetalle.Parameters.AddWithValue("@precioUnitario", item.PrecioVenta);
                                 cmdDetalle.Parameters.AddWithValue("@subtotal", item.Subtotal);
+                                cmdDetalle.Parameters.AddWithValue("@descripcionManual", item.EsArticuloComun ? item.Nombre : string.Empty);
+                                cmdDetalle.Parameters.AddWithValue("@tipoArticulo", item.EsArticuloComun ? "Comun" : "Inventario");
 
                                 cmdDetalle.ExecuteNonQuery();
+                            }
+
+                            if (item.EsArticuloComun)
+                            {
+                                continue;
                             }
 
                             string queryStock = @"
@@ -425,6 +644,8 @@ namespace RefaccionariaPOS.Views
                             }
                         }
 
+                        SumarPuntoClienteSeleccionado(conexion, transaccion);
+
                         transaccion.Commit();
                     }
                     catch (Exception ex)
@@ -436,39 +657,79 @@ namespace RefaccionariaPOS.Views
                 }
             }
 
-            GenerarTicket(folioGeneradoBaseDatos);
+            GenerarTicket(ventaIdGenerado, folioGeneradoBaseDatos);
 
             MessageBox.Show("¡Venta con Folio #" + folioGeneradoBaseDatos + " procesada con éxito!", "Venta Completada", MessageBoxButton.OK, MessageBoxImage.Information);
 
             listaCarrito.Clear();
+            txtEfectivoRecibido.Clear();
             ActualizarTotales();
             txtBuscarId.Focus();
         }
 
-        private void GenerarTicket(int folio)
+        private void GenerarTicket(int ventaId, int folio)
         {
             try
             {
-                List<string> lineasTicket = CrearLineasTicket(folio);
-                string rutaCarpeta = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "Tickets_RefaxManager");
-
-                if (!Directory.Exists(rutaCarpeta))
-                {
-                    Directory.CreateDirectory(rutaCarpeta);
-                }
-
-                string rutaArchivo = Path.Combine(rutaCarpeta, $"Ticket_{folio}.txt");
-
-                File.WriteAllLines(rutaArchivo, lineasTicket);
-
-                if (chkImprimirTicket.IsChecked == true)
-                {
-                    ImprimirTicket(lineasTicket);
-                }
+                TicketService.GenerarTicketVenta(
+                    ventaId,
+                    chkImprimirTicket.IsChecked == true,
+                    cmbImpresoras.SelectedItem?.ToString());
             }
             catch (Exception ex)
             {
                 MessageBox.Show("La venta se registró, pero no se pudo generar o imprimir el ticket: " + ex.Message, "Aviso", MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
+        }
+
+        private static void AsegurarColumnasPuntoVenta()
+        {
+            try
+            {
+                DatabaseConnection db = new DatabaseConnection();
+                using (NpgsqlConnection conexion = db.GetConnection())
+                {
+                    conexion.Open();
+
+                    const string query = @"
+                        ALTER TABLE productos
+                            ADD COLUMN IF NOT EXISTS imagen_url text NOT NULL DEFAULT '',
+                            ADD COLUMN IF NOT EXISTS tipo_venta varchar(20) NOT NULL DEFAULT 'Unidad';
+
+                        ALTER TABLE productos
+                            ALTER COLUMN stock_actual TYPE numeric(12, 3) USING stock_actual::numeric,
+                            ALTER COLUMN stock_minimo TYPE numeric(12, 3) USING stock_minimo::numeric;
+
+                        ALTER TABLE detalles_venta
+                            ADD COLUMN IF NOT EXISTS descripcion_manual text NOT NULL DEFAULT '',
+                            ADD COLUMN IF NOT EXISTS tipo_articulo varchar(30) NOT NULL DEFAULT 'Inventario';
+
+                        ALTER TABLE detalles_venta
+                            ALTER COLUMN cantidad TYPE numeric(12, 3) USING cantidad::numeric;
+
+                        CREATE TABLE IF NOT EXISTS clientes (
+                            id integer GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+                            nombre varchar(180) NOT NULL,
+                            telefono varchar(40) NOT NULL DEFAULT '',
+                            correo varchar(160) NOT NULL DEFAULT '',
+                            notas text NOT NULL DEFAULT '',
+                            puntos integer NOT NULL DEFAULT 0,
+                            fecha_alta timestamp without time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
+                        );
+
+                        ALTER TABLE ventas
+                            ADD COLUMN IF NOT EXISTS cliente_id integer NULL REFERENCES clientes(id) ON DELETE SET NULL,
+                            ADD COLUMN IF NOT EXISTS efectivo_recibido numeric(12, 2) NOT NULL DEFAULT 0,
+                            ADD COLUMN IF NOT EXISTS cambio_entregado numeric(12, 2) NOT NULL DEFAULT 0;";
+
+                    using (NpgsqlCommand cmd = new NpgsqlCommand(query, conexion))
+                    {
+                        cmd.ExecuteNonQuery();
+                    }
+                }
+            }
+            catch
+            {
             }
         }
 
@@ -498,7 +759,7 @@ namespace RefaccionariaPOS.Views
                     AjustarTexto(item.CodigoBarras, 12),
                     AjustarTexto(item.Nombre, 27),
                     string.Empty,
-                    item.Cantidad,
+                    FormatearCantidad(item.Cantidad),
                     item.PrecioVenta,
                     item.Subtotal));
                 numeroLinea++;
@@ -517,6 +778,16 @@ namespace RefaccionariaPOS.Views
             lineas.Add("Gracias por su preferencia  |  Servicio Automotriz Lopez  |  \"Tu refaccionaria de confianza\"");
 
             return lineas;
+        }
+
+        private static string FormatearCantidad(decimal cantidad)
+        {
+            return cantidad % 1 == 0 ? cantidad.ToString("0") : cantidad.ToString("0.###");
+        }
+
+        private static bool EsCantidadEntera(decimal cantidad)
+        {
+            return cantidad % 1 == 0;
         }
 
         private static string AjustarTexto(string texto, int longitudMaxima)
@@ -606,15 +877,18 @@ namespace RefaccionariaPOS.Views
         {
             try
             {
-                ImprimirTicket(new List<string>
+                TicketService.ImprimirTicket(new List<string>
                 {
-                    "========================================",
-                    "      PRUEBA DE IMPRESORA RefaxManager  ",
-                    "========================================",
+                    "REFACCIONARIA NORTE",
+                    "AV. DIVICION DEL NORTE N.63 COL. CENTRO",
+                    "----------------------------------------",
+                    "PRUEBA DE IMPRESORA TERMICA",
                     $"Fecha: {DateTime.Now:dd/MM/yyyy HH:mm:ss}",
                     "Impresora lista para tickets.",
-                    "========================================"
-                });
+                    "----------------------------------------",
+                    string.Empty,
+                    string.Empty
+                }, cmbImpresoras.SelectedItem?.ToString());
 
                 MessageBox.Show("Ticket de prueba enviado a la impresora.", "Impresora", MessageBoxButton.OK, MessageBoxImage.Information);
             }
@@ -627,10 +901,18 @@ namespace RefaccionariaPOS.Views
 
     public class ProductoCarrito
     {
+        public int ProductoId { get; set; }
         public string CodigoBarras { get; set; } = string.Empty;
         public string Nombre { get; set; } = string.Empty;
         public decimal PrecioVenta { get; set; }
-        public int Cantidad { get; set; }
+        public decimal Cantidad { get; set; }
+        public bool EsArticuloComun { get; set; }
         public decimal Subtotal => PrecioVenta * Cantidad;
+    }
+
+    public class ClienteVentaOpcion
+    {
+        public int Id { get; set; }
+        public string Nombre { get; set; } = string.Empty;
     }
 }

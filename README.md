@@ -45,3 +45,23 @@ Cambia esa contrasena creando otro usuario SuperAdmin desde la app y eliminando 
 dotnet restore
 dotnet build
 ```
+
+## Corte de caja movil
+
+La carpeta `CorteCajaMovil` contiene una PWA para consultar y registrar el corte desde un celular usando la misma base Neon configurada en `REFACCIONARIA_NUEVA_DB_CONNECTION`.
+
+Para probarla en la computadora:
+
+```powershell
+dotnet run --project .\CorteCajaMovil\CorteCajaMovil.csproj
+```
+
+Para abrirla desde un celular en la misma red, levanta el servidor escuchando en todas las interfaces:
+
+```powershell
+dotnet run --project .\CorteCajaMovil\CorteCajaMovil.csproj --urls "http://0.0.0.0:5088"
+```
+
+Despues entra desde el celular a `http://IP-DE-LA-COMPUTADORA:5088`.
+
+La app crea automaticamente la tabla `cortes_caja` si no existe. Tambien queda la migracion en `database/003_cortes_caja_movil.sql` por si prefieres ejecutarla manualmente en Neon.

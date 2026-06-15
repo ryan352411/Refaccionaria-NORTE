@@ -4,9 +4,13 @@ using RefaccionariaPOS.Models;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Globalization;
+using System.IO;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Data;
 using System.Windows.Media;
+using System.Windows.Media.Imaging;
 
 namespace RefaccionariaPOS.Views
 {
@@ -17,7 +21,9 @@ namespace RefaccionariaPOS.Views
 
         private const string QueryProductos = @"
             SELECT id, codigo_barras, nombre, descripcion, costo_proveedor, precio_venta,
-                   stock_actual, stock_minimo, categoria
+                   stock_actual, stock_minimo, categoria,
+                   COALESCE(imagen_url, '') AS imagen_url,
+                   COALESCE(tipo_venta, 'Unidad') AS tipo_venta
             FROM productos
             WHERE (nombre ILIKE @busqueda OR codigo_barras ILIKE @busqueda OR descripcion ILIKE @busqueda)
               AND (@categoria = 'Todas' OR categoria = @categoria)
@@ -35,7 +41,7 @@ namespace RefaccionariaPOS.Views
             FROM information_schema.columns
             WHERE table_schema = 'public'
               AND table_name = 'productos'
-              AND column_name IN ('stock_minimo', 'categoria');";
+              AND column_name IN ('stock_minimo', 'categoria', 'imagen_url', 'tipo_venta');";
 
         private readonly ObservableCollection<string> categorias = new();
         private static readonly Brush FilaDisponible = Brushes.White;
@@ -108,10 +114,12 @@ namespace RefaccionariaPOS.Views
                 Nombre = reader["nombre"].ToString() ?? string.Empty,
                 Descripcion = reader["descripcion"].ToString() ?? string.Empty,
                 Categoria = reader["categoria"].ToString() ?? CategoriaGeneral,
+                ImagenUrl = reader["imagen_url"].ToString() ?? string.Empty,
+                TipoVenta = reader["tipo_venta"].ToString() ?? "Unidad",
                 PrecioCompra = Convert.ToDecimal(reader["costo_proveedor"]),
                 PrecioVenta = Convert.ToDecimal(reader["precio_venta"]),
-                Stock = Convert.ToInt32(reader["stock_actual"]),
-                StockMinimo = Convert.ToInt32(reader["stock_minimo"])
+                Stock = Convert.ToDecimal(reader["stock_actual"]),
+                StockMinimo = Convert.ToDecimal(reader["stock_minimo"])
             };
         }
 
@@ -123,7 +131,7 @@ namespace RefaccionariaPOS.Views
                 return;
             }
 
-            RegistrarProductoView frm = new RegistrarProductoView { Owner = this };
+            RegistrarProductoView frm = new RegistrarProductoView { Owner = Application.Current.MainWindow };
             if (frm.ShowDialog() != true)
             {
                 return;
@@ -200,7 +208,7 @@ namespace RefaccionariaPOS.Views
                 $"Ingresa el nuevo stock físico para:\n{productoSeleccionado.Nombre}",
                 productoSeleccionado.Stock.ToString());
 
-            if (int.TryParse(nuevoStockStr, out int nuevoStock) && nuevoStock >= 0)
+            if (decimal.TryParse(nuevoStockStr, out decimal nuevoStock) && nuevoStock >= 0)
             {
                 ActualizarStockEnBaseDeDatos(productoSeleccionado.CodigoBarras, nuevoStock);
                 CargarProductos(txtBuscar.Text.Trim());
@@ -209,11 +217,11 @@ namespace RefaccionariaPOS.Views
 
             if (nuevoStockStr != null)
             {
-                MessageBox.Show("Por favor, ingresa un número entero válido (no negativo).", "Dato inválido", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show("Por favor, ingresa un numero valido (no negativo).", "Dato invalido", MessageBoxButton.OK, MessageBoxImage.Warning);
             }
         }
 
-        private void ActualizarStockEnBaseDeDatos(string codigo, int nuevoStock)
+        private void ActualizarStockEnBaseDeDatos(string codigo, decimal nuevoStock)
         {
             try
             {
@@ -291,11 +299,13 @@ namespace RefaccionariaPOS.Views
                     using (NpgsqlCommand cmd = new NpgsqlCommand(QueryVerificarColumnas, conexion))
                     {
                         int columnas = Convert.ToInt32(cmd.ExecuteScalar());
-                        if (columnas < 2)
+                        if (columnas < 4)
                         {
-                            MessageBox.Show("Faltan las columnas categoria o stock_minimo en productos. Ejecuta la migración de inventario antes de usar estos filtros.", "Inventario", MessageBoxButton.OK, MessageBoxImage.Warning);
+                            AsegurarColumnasProducto(conexion);
                         }
                     }
+
+                    AsegurarColumnasProducto(conexion);
                 }
             }
             catch (Exception ex)
@@ -368,6 +378,60 @@ namespace RefaccionariaPOS.Views
             ventana.Content = panel;
 
             return ventana;
+        }
+
+        private static void AsegurarColumnasProducto(NpgsqlConnection conexion)
+        {
+            const string query = @"
+                ALTER TABLE productos
+                    ADD COLUMN IF NOT EXISTS imagen_url text NOT NULL DEFAULT '',
+                    ADD COLUMN IF NOT EXISTS tipo_venta varchar(20) NOT NULL DEFAULT 'Unidad';
+
+                ALTER TABLE productos
+                    ALTER COLUMN stock_actual TYPE numeric(12, 3) USING stock_actual::numeric,
+                    ALTER COLUMN stock_minimo TYPE numeric(12, 3) USING stock_minimo::numeric;";
+
+            using (NpgsqlCommand cmd = new NpgsqlCommand(query, conexion))
+            {
+                cmd.ExecuteNonQuery();
+            }
+        }
+    }
+
+    public class ImagenProductoConverter : IValueConverter
+    {
+        public object? Convert(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            string ruta = value?.ToString() ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(ruta))
+            {
+                return null;
+            }
+
+            try
+            {
+                Uri uri = Uri.TryCreate(ruta, UriKind.Absolute, out Uri? absoluta)
+                    ? absoluta
+                    : new Uri(Path.GetFullPath(ruta), UriKind.Absolute);
+
+                BitmapImage imagen = new BitmapImage();
+                imagen.BeginInit();
+                imagen.CacheOption = BitmapCacheOption.OnLoad;
+                imagen.UriSource = uri;
+                imagen.DecodePixelWidth = 92;
+                imagen.EndInit();
+                imagen.Freeze();
+                return imagen;
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            throw new NotSupportedException();
         }
     }
 }

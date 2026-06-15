@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Text;
 using System.Windows;
@@ -13,7 +13,7 @@ namespace RefaccionariaPOS.Views
 {
     public partial class HistorialVentasView : Window
     {
-        public HistorialVentasView()
+        public HistorialVentasView(int usuarioId = 0, bool puedeRegistrarDevoluciones = false)
         {
             InitializeComponent();
             CargarHistorial();
@@ -71,7 +71,7 @@ namespace RefaccionariaPOS.Views
         {
             DependencyObject? dep = e.OriginalSource as DependencyObject;
 
-            while (dep != null && !(dep is DataGridRow))
+            while (dep != null && dep is not DataGridRow)
             {
                 dep = VisualTreeHelper.GetParent(dep);
             }
@@ -85,9 +85,9 @@ namespace RefaccionariaPOS.Views
 
         private void MenuVerDetalles_Click(object sender, RoutedEventArgs e)
         {
-            if (!(dgHistorial.SelectedItem is Venta ventaSeleccionada))
+            if (dgHistorial.SelectedItem is not Venta ventaSeleccionada)
             {
-                MessageBox.Show("Por favor, haz clic derecho sobre una fila válida.", "Aviso", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show("Por favor, haz clic derecho sobre una fila valida.", "Aviso", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
 
@@ -105,7 +105,7 @@ namespace RefaccionariaPOS.Views
                         SELECT dv.cantidad,
                                dv.precio_unitario,
                                dv.subtotal,
-                               COALESCE(p.nombre, 'Producto eliminado') AS producto_nombre
+                               COALESCE(NULLIF(dv.descripcion_manual, ''), p.nombre, 'Producto eliminado') AS producto_nombre
                         FROM detalles_venta dv
                         LEFT JOIN productos p ON dv.producto_id = p.id
                         WHERE dv.venta_id = @ventaId
@@ -135,7 +135,7 @@ namespace RefaccionariaPOS.Views
                                 tieneArticulos = true;
 
                                 string nombreProd = reader["producto_nombre"].ToString() ?? string.Empty;
-                                int cantidad = Convert.ToInt32(reader["cantidad"]);
+                                decimal cantidad = Convert.ToDecimal(reader["cantidad"]);
                                 decimal precioUnit = Convert.ToDecimal(reader["precio_unitario"]);
                                 decimal subtotal = Convert.ToDecimal(reader["subtotal"]);
 
@@ -144,12 +144,12 @@ namespace RefaccionariaPOS.Views
                                     nombreProd = nombreProd.Substring(0, 25) + "...";
                                 }
 
-                                detalleTexto.AppendLine(string.Format("{0,-30} | {1,-8} | {2,-10:C} | {3,-10:C}", nombreProd, cantidad, precioUnit, subtotal));
+                                detalleTexto.AppendLine(string.Format("{0,-30} | {1,-8} | {2,-10:C} | {3,-10:C}", nombreProd, FormatearCantidad(cantidad), precioUnit, subtotal));
                             }
 
                             if (!tieneArticulos)
                             {
-                                detalleTexto.AppendLine("No se encontraron articulos registrados para esta venta. Las ventas nuevas ya guardaran el detalle automaticamente.");
+                                detalleTexto.AppendLine("No se encontraron articulos registrados para esta venta.");
                             }
                             else
                             {
@@ -173,13 +173,13 @@ namespace RefaccionariaPOS.Views
             Window ventanaDetalle = new Window
             {
                 Title = "Articulos Vendidos",
-                Owner = this,
+                Owner = Application.Current.MainWindow,
                 Width = 760,
                 Height = 520,
                 MinWidth = 620,
                 MinHeight = 420,
                 WindowStartupLocation = WindowStartupLocation.CenterOwner,
-                Background = System.Windows.Media.Brushes.White
+                Background = Brushes.White
             };
 
             Grid contenedor = new Grid { Margin = new Thickness(16) };
@@ -191,7 +191,7 @@ namespace RefaccionariaPOS.Views
                 Text = detalle,
                 IsReadOnly = true,
                 TextWrapping = TextWrapping.NoWrap,
-                FontFamily = new System.Windows.Media.FontFamily("Consolas"),
+                FontFamily = new FontFamily("Consolas"),
                 FontSize = 13,
                 VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
                 HorizontalScrollBarVisibility = ScrollBarVisibility.Auto,
@@ -216,6 +216,11 @@ namespace RefaccionariaPOS.Views
 
             ventanaDetalle.Content = contenedor;
             ventanaDetalle.ShowDialog();
+        }
+
+        private static string FormatearCantidad(decimal cantidad)
+        {
+            return cantidad % 1 == 0 ? cantidad.ToString("0") : cantidad.ToString("0.###");
         }
     }
 }

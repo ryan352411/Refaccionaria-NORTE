@@ -28,7 +28,10 @@
                       CanUserAddRows="False"
                       EnableRowVirtualization="True"
                       EnableColumnVirtualization="True"
-                      ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                      RowHeight="34"
+                      RowHeaderWidth="0"
+                      AlternatingRowBackground="#F8FAFC"
+                      ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                       ScrollViewer.VerticalScrollBarVisibility="Auto"
                       PreviewMouseRightButtonDown="DgHistorial_PreviewMouseRightButtonDown">
 
@@ -39,14 +42,14 @@
                 </DataGrid.ContextMenu>
 
                 <DataGrid.Columns>
-                    <DataGridTextColumn Header="ID" Binding="{Binding Id}" Width="70"/>
-                    <DataGridTextColumn Header="Folio" Binding="{Binding Folio}" Width="90"/>
-                    <DataGridTextColumn Header="Fecha" Binding="{Binding Fecha, StringFormat={}{0:dd/MM/yyyy HH:mm}}" Width="160"/>
-                    <DataGridTextColumn Header="Total" Binding="{Binding Total, StringFormat={}{0:C}}" Width="130"/>
-                    <DataGridTextColumn Header="Origen" Binding="{Binding Origen}" Width="170"/>
-                    <DataGridTextColumn Header="Usuario" Binding="{Binding Vendedor}" Width="140"/>
-                    <DataGridTextColumn Header="Método / Canal" Binding="{Binding MetodoPago}" Width="220"/>
-                    <DataGridTextColumn Header="Estado" Binding="{Binding Estado}" Width="120"/>
+                    <DataGridTextColumn Header="ID" Binding="{Binding Id}" Width="55"/>
+                    <DataGridTextColumn Header="Folio" Binding="{Binding Folio}" Width="75"/>
+                    <DataGridTextColumn Header="Fecha" Binding="{Binding Fecha, StringFormat={}{0:dd/MM/yyyy HH:mm}}" Width="145"/>
+                    <DataGridTextColumn Header="Total" Binding="{Binding Total, StringFormat={}{0:C}}" Width="110"/>
+                    <DataGridTextColumn Header="Origen" Binding="{Binding Origen}" Width="120"/>
+                    <DataGridTextColumn Header="Usuario" Binding="{Binding Vendedor}" Width="120"/>
+                    <DataGridTextColumn Header="Metodo / Canal" Binding="{Binding MetodoPago}" Width="*"/>
+                    <DataGridTextColumn Header="Estado" Binding="{Binding Estado}" Width="110"/>
                 </DataGrid.Columns>
             </DataGrid>
         </Border>

@@ -26,7 +26,14 @@
                 <TextBlock Text="Usa tus credenciales registradas." FontSize="14" Foreground="#6B7785" Margin="0,8,0,30"/>
 
                 <TextBlock Text="Usuario" FontWeight="SemiBold" Foreground="#334155" Margin="0,0,0,6"/>
-                <TextBox x:Name="txtUsuario" Height="42" FontSize="15" Padding="10,8" Margin="0,0,0,18" KeyDown="Credentials_KeyDown"/>
+                <ComboBox x:Name="cmbUsuarios"
+                          Height="42"
+                          FontSize="15"
+                          Padding="8,6"
+                          Margin="0,0,0,18"
+                          DisplayMemberPath="Username"
+                          SelectedValuePath="Id"
+                          KeyDown="Credentials_KeyDown"/>
 
                 <TextBlock Text="Contraseña" FontWeight="SemiBold" Foreground="#334155" Margin="0,0,0,6"/>
                 <PasswordBox x:Name="txtPassword" Height="42" FontSize="15" Padding="10,8" Margin="0,0,0,26" KeyDown="Credentials_KeyDown"/>
