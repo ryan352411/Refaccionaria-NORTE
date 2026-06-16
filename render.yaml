@@ -3,7 +3,7 @@ services:
     name: refaccionaria-norte-catalogo
     runtime: docker
     plan: free
-    dockerfilePath: ./CatalogoWeb/Dockerfile
+    dockerfilePath: ./Dockerfile
     dockerContext: .
     healthCheckPath: /api/health
     envVars:
