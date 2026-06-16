@@ -240,6 +240,13 @@ ClientBin/
 *.jfm
 *.pfx
 *.publishsettings
+*.env
+.env
+.env.*
+!.env.example
+**/appsettings.Production.json
+**/secrets.json
+CatalogoWeb/catalogoweb*.log
 orleans.codegen.cs
 
 # Including strong name files can present a security risk

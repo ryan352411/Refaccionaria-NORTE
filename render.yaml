@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: refaccionaria-norte-catalogo
+    runtime: docker
+    plan: free
+    dockerfilePath: ./CatalogoWeb/Dockerfile
+    dockerContext: .
+    healthCheckPath: /api/health
+    envVars:
+      - key: ASPNETCORE_ENVIRONMENT
+        value: Production
+      - key: REFACCIONARIA_NUEVA_DB_CONNECTION
+        sync: false

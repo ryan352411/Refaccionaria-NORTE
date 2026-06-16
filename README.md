@@ -65,3 +65,42 @@ dotnet run --project .\CorteCajaMovil\CorteCajaMovil.csproj --urls "http://0.0.0
 Despues entra desde el celular a `http://IP-DE-LA-COMPUTADORA:5088`.
 
 La app crea automaticamente la tabla `cortes_caja` si no existe. Tambien queda la migracion en `database/003_cortes_caja_movil.sql` por si prefieres ejecutarla manualmente en Neon.
+
+## Catalogo web para clientes
+
+La carpeta `CatalogoWeb` contiene una pagina web de solo lectura para que los clientes consulten piezas en existencia, precios de venta, categorias e imagenes de productos cuando `imagen_url` este configurado en el POS.
+
+Para probarla en la computadora:
+
+```powershell
+dotnet run --project .\CatalogoWeb\CatalogoWeb.csproj
+```
+
+Para abrirla desde un celular en la misma red:
+
+```powershell
+dotnet run --project .\CatalogoWeb\CatalogoWeb.csproj --urls "http://0.0.0.0:5090"
+```
+
+Despues entra desde el celular a `http://IP-DE-LA-COMPUTADORA:5090`.
+
+El catalogo usa la misma variable `REFACCIONARIA_NUEVA_DB_CONNECTION`. Al iniciar agrega automaticamente las columnas `imagen_url` y `tipo_venta` a `productos` si aun no existen.
+
+## Despliegue seguro del catalogo
+
+El archivo `render.yaml` deja preparado el catalogo para Render como Web Service con Docker. No guardes credenciales en el repositorio.
+
+En Render configura estas variables de entorno desde el panel del servicio:
+
+```text
+REFACCIONARIA_NUEVA_DB_CONNECTION=Host=...;Database=...;Username=...;Password=...;SSL Mode=Require;Trust Server Certificate=true
+ASPNETCORE_ENVIRONMENT=Production
+```
+
+Recomendaciones:
+
+- Usa un usuario de Neon con los permisos minimos necesarios para leer productos.
+- No pegues la cadena de conexion en `appsettings.json`, `render.yaml`, `Dockerfile`, archivos `.env` ni commits.
+- Sube imagenes como URLs HTTPS publicas, por ejemplo Cloudinary o un bucket de storage. Las rutas locales de Windows solo funcionan en la computadora donde esta instalado el POS.
+- Si cambias la contrasena de Neon, actualiza solo la variable de entorno en Render y redeploya el servicio.
+- Render debe usar `/api/health` como health check.

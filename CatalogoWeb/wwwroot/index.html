@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="es-MX">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0f5132">
+  <title>Catalogo Refaccionaria Norte</title>
+  <link rel="manifest" href="/manifest.json">
+  <link rel="stylesheet" href="/styles.css?v=3">
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <a class="brand" href="/" aria-label="Catalogo Refaccionaria Norte">
+        <span class="brand-mark">RN</span>
+        <span>
+          <strong>REFACCIONARIA NORTE</strong>
+          <small>AV.DIVICION DEL NORTE #63 COL.CENTRO</small>
+        </span>
+      </a>
+      <span id="connectionStatus" class="status-pill">Cargando</span>
+    </header>
+
+    <main>
+      <section class="search-band">
+        <div class="search-copy">
+          <h1>Busca refacciones disponibles</h1>
+          <div class="summary-row" aria-label="Resumen del catalogo">
+            <span><strong id="availableCount">0</strong> disponibles</span>
+            <span><strong id="categoryCount">0</strong> categorias</span>
+            <span><strong id="totalCount">0</strong> articulos</span>
+          </div>
+        </div>
+
+        <form id="catalogForm" class="catalog-form">
+          <label class="search-field">
+            <span>Buscar</span>
+            <input id="searchInput" type="search" placeholder="Nombre o descripcion" autocomplete="off">
+          </label>
+          <label class="select-field">
+            <span>Categoria</span>
+            <select id="categorySelect">
+              <option value="">Todas</option>
+            </select>
+          </label>
+          <label class="stock-toggle">
+            <input id="stockToggle" type="checkbox" checked>
+            <span>Solo en existencia</span>
+          </label>
+        </form>
+      </section>
+
+      <section class="category-strip" aria-label="Categorias">
+        <button class="category-chip active" type="button" data-category="">Todo</button>
+        <div id="categoryChips" class="chip-scroll"></div>
+      </section>
+
+      <section class="catalog-heading">
+        <div>
+          <p class="eyebrow">Inventario</p>
+          <h2 id="resultTitle">Productos disponibles</h2>
+        </div>
+        <span id="resultMeta">0 resultados</span>
+      </section>
+
+      <section id="productGrid" class="product-grid" aria-live="polite"></section>
+
+      <nav class="pager" aria-label="Paginacion">
+        <button id="prevButton" type="button">Anterior</button>
+        <span id="pageMeta">Pagina 1 de 1</span>
+        <button id="nextButton" type="button">Siguiente</button>
+      </nav>
+    </main>
+  </div>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script src="/app.js?v=3" defer></script>
+</body>
+</html>
