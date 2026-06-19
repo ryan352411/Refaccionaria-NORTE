@@ -194,6 +194,32 @@
                                                    HorizontalAlignment="Center"
                                                    VerticalAlignment="Center"
                                                    TextAlignment="Center"/>
+                                        <Button x:Name="btnImagenAnterior"
+                                                Content="&lt;"
+                                                Width="38"
+                                                Height="38"
+                                                HorizontalAlignment="Left"
+                                                VerticalAlignment="Center"
+                                                Visibility="Collapsed"
+                                                Click="BtnImagenAnterior_Click"
+                                                Background="#DCE8F6"
+                                                Foreground="#1E3A5F"
+                                                BorderBrush="#CBD5E1"
+                                                FontSize="24"
+                                                FontWeight="Bold"/>
+                                        <Button x:Name="btnImagenSiguiente"
+                                                Content="&gt;"
+                                                Width="38"
+                                                Height="38"
+                                                HorizontalAlignment="Right"
+                                                VerticalAlignment="Center"
+                                                Visibility="Collapsed"
+                                                Click="BtnImagenSiguiente_Click"
+                                                Background="#DCE8F6"
+                                                Foreground="#1E3A5F"
+                                                BorderBrush="#CBD5E1"
+                                                FontSize="24"
+                                                FontWeight="Bold"/>
                                     </Grid>
                                 </Border>
 

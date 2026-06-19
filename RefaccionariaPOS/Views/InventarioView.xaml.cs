@@ -22,9 +22,16 @@ namespace RefaccionariaPOS.Views
             SELECT p.id, p.codigo_barras, p.nombre, p.descripcion, p.costo_proveedor, p.precio_venta,
                    p.stock_actual, p.stock_minimo, p.categoria,
                    COALESCE(pi.imagen_url, p.imagen_url, '') AS imagen_url,
+                   pi.imagen_data,
                    COALESCE(p.tipo_venta, 'Unidad') AS tipo_venta
             FROM productos p
-            LEFT JOIN producto_imagenes pi ON pi.producto_id = p.id
+            LEFT JOIN LATERAL (
+                SELECT imagen_url, imagen_data
+                FROM producto_imagenes
+                WHERE producto_id = p.id
+                ORDER BY orden, id
+                LIMIT 1
+            ) pi ON true
             WHERE (p.nombre ILIKE @busqueda OR p.codigo_barras ILIKE @busqueda OR p.descripcion ILIKE @busqueda)
               AND (@categoria = 'Todas' OR categoria = @categoria)
               AND (@soloBajoStock = false OR stock_actual <= stock_minimo)
@@ -116,6 +123,7 @@ namespace RefaccionariaPOS.Views
                 Descripcion = reader["descripcion"].ToString() ?? string.Empty,
                 Categoria = reader["categoria"].ToString() ?? CategoriaGeneral,
                 ImagenUrl = reader["imagen_url"].ToString() ?? string.Empty,
+                ImagenData = reader["imagen_data"] is DBNull ? null : (byte[])reader["imagen_data"],
                 TipoVenta = reader["tipo_venta"].ToString() ?? "Unidad",
                 PrecioCompra = Convert.ToDecimal(reader["costo_proveedor"]),
                 PrecioVenta = Convert.ToDecimal(reader["precio_venta"]),
@@ -403,8 +411,12 @@ namespace RefaccionariaPOS.Views
     {
         public object? Convert(object value, Type targetType, object parameter, CultureInfo culture)
         {
-            string ruta = value?.ToString() ?? string.Empty;
-            return ProductImageService.CargarImagen(ruta, 92);
+            if (value is Producto producto)
+            {
+                return ProductImageService.CargarImagen(producto.ImagenData, producto.ImagenUrl, 92);
+            }
+
+            return ProductImageService.CargarImagen(value?.ToString() ?? string.Empty, 92);
         }
 
         public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)

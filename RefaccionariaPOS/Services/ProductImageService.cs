@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Windows.Media.Imaging;
@@ -60,6 +61,47 @@ namespace RefaccionariaPOS.Services
             return destino;
         }
 
+        public static ProductImageData PrepararImagenParaBase(string imageValue)
+        {
+            if (string.IsNullOrWhiteSpace(imageValue))
+            {
+                return new ProductImageData(string.Empty, null, string.Empty, string.Empty);
+            }
+
+            string valor = imageValue.Trim();
+            if (Uri.TryCreate(valor, UriKind.Absolute, out Uri? uri)
+                && (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps))
+            {
+                return new ProductImageData(valor, null, string.Empty, string.Empty);
+            }
+
+            string? archivoOrigen = ResolverRutaLocal(valor);
+            if (archivoOrigen == null || !File.Exists(archivoOrigen))
+            {
+                return new ProductImageData(valor, null, string.Empty, string.Empty);
+            }
+
+            string extension = Path.GetExtension(archivoOrigen);
+            if (!ExtensionesPermitidas.Contains(extension, StringComparer.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException("Selecciona una imagen JPG, PNG, BMP, GIF o WEBP.");
+            }
+
+            return new ProductImageData(
+                string.Empty,
+                File.ReadAllBytes(archivoOrigen),
+                ObtenerContentType(extension),
+                Path.GetFileName(archivoOrigen));
+        }
+
+        public static IReadOnlyList<ProductImageData> PrepararImagenesParaBase(IEnumerable<string> imageValues)
+        {
+            return imageValues
+                .Select(PrepararImagenParaBase)
+                .Where(imagen => !imagen.IsEmpty)
+                .ToList();
+        }
+
         public static BitmapImage? CargarImagen(string ruta, int decodePixelWidth = 0)
         {
             if (string.IsNullOrWhiteSpace(ruta))
@@ -110,6 +152,35 @@ namespace RefaccionariaPOS.Services
             return null;
         }
 
+        public static BitmapImage? CargarImagen(byte[]? imagenData, string ruta, int decodePixelWidth = 0)
+        {
+            if (imagenData is { Length: > 0 })
+            {
+                try
+                {
+                    using MemoryStream stream = new MemoryStream(imagenData);
+                    BitmapImage imagen = new BitmapImage();
+                    imagen.BeginInit();
+                    imagen.CacheOption = BitmapCacheOption.OnLoad;
+                    if (decodePixelWidth > 0)
+                    {
+                        imagen.DecodePixelWidth = decodePixelWidth;
+                    }
+
+                    imagen.StreamSource = stream;
+                    imagen.EndInit();
+                    imagen.Freeze();
+                    return imagen;
+                }
+                catch
+                {
+                    return null;
+                }
+            }
+
+            return CargarImagen(ruta, decodePixelWidth);
+        }
+
         public static string? ResolverRutaLocal(string ruta)
         {
             string valor = ruta.Trim().Trim('"');
@@ -152,5 +223,27 @@ namespace RefaccionariaPOS.Services
 
             return valor.Length > 48 ? valor.Substring(0, 48) : valor;
         }
+
+        private static string ObtenerContentType(string extension)
+        {
+            return extension.ToLowerInvariant() switch
+            {
+                ".jpg" or ".jpeg" => "image/jpeg",
+                ".png" => "image/png",
+                ".bmp" => "image/bmp",
+                ".gif" => "image/gif",
+                ".webp" => "image/webp",
+                _ => "application/octet-stream"
+            };
+        }
+    }
+
+    public sealed record ProductImageData(
+        string Url,
+        byte[]? Data,
+        string ContentType,
+        string FileName)
+    {
+        public bool IsEmpty => string.IsNullOrWhiteSpace(Url) && Data == null;
     }
 }

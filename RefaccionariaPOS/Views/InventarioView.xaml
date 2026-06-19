@@ -79,7 +79,7 @@
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate>
                             <Border Width="46" Height="46" Background="#E2E8F0" CornerRadius="4" HorizontalAlignment="Center" VerticalAlignment="Center">
-                                <Image Source="{Binding ImagenUrl, Converter={StaticResource ImagenProductoConverter}}" Stretch="UniformToFill"/>
+                                <Image Source="{Binding Converter={StaticResource ImagenProductoConverter}}" Stretch="UniformToFill"/>
                             </Border>
                         </DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>

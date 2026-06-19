@@ -3,6 +3,7 @@ using RefaccionariaPOS.Data;
 using RefaccionariaPOS.Services;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Microsoft.Win32;
 using System.Windows;
 using System.Windows.Controls;
@@ -36,9 +37,17 @@ namespace RefaccionariaPOS.Views
         private const string QueryBuscarProducto = @"
             SELECT p.id, p.nombre, p.descripcion, p.costo_proveedor, p.precio_venta, p.stock_minimo, p.categoria,
                    COALESCE(pi.imagen_url, p.imagen_url, '') AS imagen_url,
+                   pi.imagen_data,
+                   COALESCE(pi.file_name, '') AS file_name,
                    COALESCE(p.tipo_venta, 'Unidad') AS tipo_venta
             FROM productos p
-            LEFT JOIN producto_imagenes pi ON pi.producto_id = p.id
+            LEFT JOIN LATERAL (
+                SELECT imagen_url, imagen_data, file_name
+                FROM producto_imagenes
+                WHERE producto_id = p.id
+                ORDER BY orden, id
+                LIMIT 1
+            ) pi ON true
             WHERE p.codigo_barras = @codigo
             LIMIT 1;";
 
@@ -57,6 +66,8 @@ namespace RefaccionariaPOS.Views
 
         private int? productoExistenteId;
         private string ultimoCodigoConsultado = string.Empty;
+        private bool imagenCambiada;
+        private List<string> rutasImagenesSeleccionadas = [];
 
         public RegistrarProductoView()
         {
@@ -155,11 +166,11 @@ namespace RefaccionariaPOS.Views
 
                 using (NpgsqlCommand cmd = new NpgsqlCommand(QueryInsertarProducto, conexion))
                 {
-                    string imagenLocal = PrepararImagenLocal();
+                    IReadOnlyList<ProductImageData> imagenes = PrepararImagenes();
                     AgregarParametrosProducto(cmd, costo, precioVenta, stockMinimo);
                     cmd.Parameters.AddWithValue("@stock", stock);
                     int productoId = Convert.ToInt32(cmd.ExecuteScalar());
-                    ProductImageRepository.GuardarImagen(conexion, productoId, imagenLocal);
+                    ProductImageRepository.GuardarImagenes(conexion, productoId, imagenes);
                 }
             }
         }
@@ -174,19 +185,26 @@ namespace RefaccionariaPOS.Views
 
                 using (NpgsqlCommand cmd = new NpgsqlCommand(QueryActualizarProducto, conexion))
                 {
-                    string imagenLocal = PrepararImagenLocal();
                     AgregarParametrosProducto(cmd, costo, precioVenta, stockMinimo);
                     cmd.Parameters.AddWithValue("@stockAgregar", stockAgregar);
                     cmd.Parameters.AddWithValue("@id", idProducto);
                     cmd.ExecuteNonQuery();
-                    ProductImageRepository.GuardarImagen(conexion, idProducto, imagenLocal);
+                    if (imagenCambiada)
+                    {
+                        ProductImageRepository.GuardarImagenes(conexion, idProducto, PrepararImagenes());
+                    }
                 }
             }
         }
 
-        private string PrepararImagenLocal()
+        private IReadOnlyList<ProductImageData> PrepararImagenes()
         {
-            return ProductImageService.GuardarImagenLocal(txtImagenUrl.Text.Trim(), txtCodigo.Text.Trim());
+            if (rutasImagenesSeleccionadas.Count > 0)
+            {
+                return ProductImageService.PrepararImagenesParaBase(rutasImagenesSeleccionadas);
+            }
+
+            return ProductImageService.PrepararImagenesParaBase([txtImagenUrl.Text.Trim()]);
         }
 
         private void AgregarParametrosProducto(NpgsqlCommand cmd, decimal costo, decimal precioVenta, decimal stockMinimo)
@@ -208,12 +226,16 @@ namespace RefaccionariaPOS.Views
                 Title = "Seleccionar imagen del producto",
                 Filter = "Imagenes|*.jpg;*.jpeg;*.png;*.bmp;*.gif;*.webp|Todos los archivos|*.*",
                 CheckFileExists = true,
-                Multiselect = false
+                Multiselect = true
             };
 
             if (dialogo.ShowDialog(this) == true)
             {
-                txtImagenUrl.Text = dialogo.FileName;
+                rutasImagenesSeleccionadas = dialogo.FileNames.ToList();
+                txtImagenUrl.Text = rutasImagenesSeleccionadas.Count == 1
+                    ? rutasImagenesSeleccionadas[0]
+                    : $"{rutasImagenesSeleccionadas.Count} imagenes seleccionadas";
+                imagenCambiada = true;
             }
         }
 
@@ -265,6 +287,7 @@ namespace RefaccionariaPOS.Views
             using (NpgsqlConnection conexion = db.GetConnection())
             {
                 conexion.Open();
+                ProductImageRepository.AsegurarTabla(conexion);
 
                 using (NpgsqlCommand cmd = new NpgsqlCommand(QueryBuscarProducto, conexion))
                 {
@@ -293,7 +316,12 @@ namespace RefaccionariaPOS.Views
             txtPrecioVenta.Text = Convert.ToDecimal(reader["precio_venta"]).ToString("0.##");
             txtStockMinimo.Text = Convert.ToDecimal(reader["stock_minimo"]).ToString("0.###");
             cmbCategoria.Text = reader["categoria"].ToString() ?? CategoriaGeneral;
-            txtImagenUrl.Text = reader["imagen_url"].ToString() ?? string.Empty;
+            txtImagenUrl.Text = string.IsNullOrWhiteSpace(reader["imagen_url"].ToString())
+                && reader["imagen_data"] is not DBNull
+                    ? (string.IsNullOrWhiteSpace(reader["file_name"].ToString()) ? "Imagen guardada en la base de datos" : reader["file_name"].ToString())
+                    : reader["imagen_url"].ToString() ?? string.Empty;
+            imagenCambiada = false;
+            rutasImagenesSeleccionadas.Clear();
             SeleccionarTipoVenta(reader["tipo_venta"].ToString() ?? "Unidad");
             txtStock.Clear();
 
@@ -307,6 +335,8 @@ namespace RefaccionariaPOS.Views
         private void ReiniciarModoNuevo()
         {
             productoExistenteId = null;
+            imagenCambiada = false;
+            rutasImagenesSeleccionadas.Clear();
             lblModo.Text = "NUEVO PRODUCTO";
             lblModo.Foreground = System.Windows.Media.Brushes.DarkSlateGray;
             lblStockCaption.Text = "Stock Inicial:";

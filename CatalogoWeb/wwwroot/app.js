@@ -190,14 +190,47 @@ function createProductCard(producto) {
 
   const media = document.createElement("div");
   media.className = "product-media";
+  const imagenes = Array.isArray(producto.imagenes) && producto.imagenes.length > 0
+    ? producto.imagenes
+    : producto.imagenUrl
+      ? [producto.imagenUrl]
+      : [];
+  let imagenActual = 0;
 
-  if (producto.imagenUrl) {
+  if (imagenes.length > 0) {
     const image = document.createElement("img");
-    image.src = producto.imagenUrl;
     image.alt = producto.nombre;
     image.loading = "lazy";
     image.addEventListener("error", () => renderPlaceholder(media, producto.categoria));
     media.append(image);
+    renderProductImage(image, imagenes, imagenActual);
+
+    if (imagenes.length > 1) {
+      const previous = imageNavButton("Anterior", "<");
+      const next = imageNavButton("Siguiente", ">");
+      const counter = document.createElement("span");
+      counter.className = "image-count";
+
+      const updateImage = () => {
+        renderProductImage(image, imagenes, imagenActual);
+        counter.textContent = `${imagenActual + 1}/${imagenes.length}`;
+      };
+
+      previous.addEventListener("click", (event) => {
+        event.preventDefault();
+        imagenActual = (imagenActual - 1 + imagenes.length) % imagenes.length;
+        updateImage();
+      });
+
+      next.addEventListener("click", (event) => {
+        event.preventDefault();
+        imagenActual = (imagenActual + 1) % imagenes.length;
+        updateImage();
+      });
+
+      updateImage();
+      media.append(previous, next, counter);
+    }
   } else {
     renderPlaceholder(media, producto.categoria);
   }
@@ -225,6 +258,20 @@ function createProductCard(producto) {
   body.append(meta, title, desc, footer);
   card.append(media, body);
   return card;
+}
+
+function renderProductImage(image, imagenes, index) {
+  image.parentElement?.querySelector(".product-placeholder")?.remove();
+  image.src = imagenes[index];
+}
+
+function imageNavButton(label, text) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = `image-nav ${label === "Anterior" ? "prev" : "next"}`;
+  button.setAttribute("aria-label", label);
+  button.textContent = text;
+  return button;
 }
 
 function renderPlaceholder(container, categoria) {

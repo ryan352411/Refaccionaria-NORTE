@@ -16,9 +16,16 @@ namespace RefaccionariaPOS.Security
         private const string LicensingConnectionEnvironmentVariable = "REFACCIONARIA_LICENSE_DB_CONNECTION";
         private const string SharedConnectionEnvironmentVariable = "REFACCIONARIA_DB_CONNECTION";
         private const string AppConnectionEnvironmentVariable = "REFACCIONARIA_NUEVA_DB_CONNECTION";
+        private static readonly TimeSpan ActiveLicenseCacheDuration = TimeSpan.FromDays(7);
 
         public static bool Validate(out string message)
         {
+            if (HasRecentActiveValidation())
+            {
+                message = "Instalacion activa.";
+                return true;
+            }
+
             try
             {
                 Guid installationId = GetOrCreateInstallationId();
@@ -37,10 +44,16 @@ namespace RefaccionariaPOS.Security
             }
             catch (Exception ex)
             {
-                if (WasLastKnownInactive())
+                if (WasLastKnownInactive() && !WasLastKnownActive())
                 {
                     message = "Esta instalacion de RefaxManager fue desactivada desde el panel web. Contacta al proveedor.";
                     return false;
+                }
+
+                if (WasLastKnownActive())
+                {
+                    message = "Instalacion activa temporalmente.";
+                    return true;
                 }
 
                 message = "No se pudo contactar el panel de licencias. Se permite el acceso temporalmente: " + ex.Message;
@@ -131,6 +144,33 @@ namespace RefaccionariaPOS.Security
             using RegistryKey key = Registry.CurrentUser.CreateSubKey(RegistryPath);
             object? storedValue = key.GetValue(LastKnownActiveValue);
             return storedValue is int activeValue && activeValue == 0;
+        }
+
+        private static bool WasLastKnownActive()
+        {
+            using RegistryKey key = Registry.CurrentUser.CreateSubKey(RegistryPath);
+            object? storedValue = key.GetValue(LastKnownActiveValue);
+            return storedValue is int activeValue && activeValue == 1;
+        }
+
+        private static bool HasRecentActiveValidation()
+        {
+            using RegistryKey key = Registry.CurrentUser.CreateSubKey(RegistryPath);
+            object? activeValue = key.GetValue(LastKnownActiveValue);
+            string? lastValidationText = key.GetValue(LastValidationValue)?.ToString();
+
+            if (activeValue is not int active || active != 1)
+            {
+                return false;
+            }
+
+            if (!DateTime.TryParse(lastValidationText, null, System.Globalization.DateTimeStyles.RoundtripKind, out DateTime lastValidationUtc))
+            {
+                return false;
+            }
+
+            TimeSpan elapsed = DateTime.UtcNow - lastValidationUtc.ToUniversalTime();
+            return elapsed >= TimeSpan.Zero && elapsed <= ActiveLicenseCacheDuration;
         }
 
         private static string? GetConfiguredConnectionString()

@@ -34,9 +34,11 @@ namespace RefaccionariaPOS.Views
         private readonly HashSet<string> permisosActuales = new(StringComparer.OrdinalIgnoreCase);
         private readonly ObservableCollection<ProductoInicio> productosInicio = new();
         private readonly ObservableCollection<ProductoInicio> productosInicioFiltrados = new();
+        private readonly List<ProductoImagenInicio> imagenesProductoInicio = new();
         private readonly StringBuilder scannerBuffer = new();
         private DateTime ultimoCaracterScanner = DateTime.MinValue;
         private Window? vistaEmbebidaActual;
+        private int indiceImagenProductoInicio;
 
         public MainView(int idUsuario, string usuario, string rol)
         {
@@ -196,10 +198,8 @@ namespace RefaccionariaPOS.Views
                     ProductImageRepository.AsegurarTabla(conexion);
 
                     const string query = @"
-                        SELECT p.codigo_barras, p.nombre, p.categoria, p.precio_venta, p.stock_actual,
-                               COALESCE(pi.imagen_url, p.imagen_url, '') AS imagen_url
+                        SELECT p.id, p.codigo_barras, p.nombre, p.categoria, p.precio_venta, p.stock_actual
                         FROM productos p
-                        LEFT JOIN producto_imagenes pi ON pi.producto_id = p.id
                         ORDER BY p.nombre ASC;";
 
                     using (NpgsqlCommand cmd = new NpgsqlCommand(query, conexion))
@@ -209,12 +209,12 @@ namespace RefaccionariaPOS.Views
                         {
                             productosInicio.Add(new ProductoInicio
                             {
+                                Id = Convert.ToInt32(reader["id"]),
                                 CodigoBarras = reader["codigo_barras"].ToString() ?? string.Empty,
                                 Nombre = reader["nombre"].ToString() ?? string.Empty,
                                 Categoria = reader["categoria"].ToString() ?? "General",
                                 PrecioVenta = Convert.ToDecimal(reader["precio_venta"]),
-                                StockActual = Convert.ToDecimal(reader["stock_actual"]),
-                                ImagenUrl = reader["imagen_url"].ToString() ?? string.Empty
+                                StockActual = Convert.ToDecimal(reader["stock_actual"])
                             });
                         }
                     }
@@ -307,22 +307,61 @@ namespace RefaccionariaPOS.Views
             lblProductoInicioNombre.Text = producto.Nombre;
             lblProductoInicioDatos.Text = $"{producto.CodigoBarras}  -  {producto.Categoria}  -  Stock: {producto.StockActual:0.###}";
             lblProductoInicioPrecio.Text = producto.PrecioVenta.ToString("C");
-            MostrarImagenProductoInicio(producto.ImagenUrl);
+            CargarImagenesProductoInicio(producto.Id);
+            MostrarImagenProductoInicioActual();
         }
 
-        private void MostrarImagenProductoInicio(string imagenUrl)
+        private void CargarImagenesProductoInicio(int productoId)
+        {
+            imagenesProductoInicio.Clear();
+            indiceImagenProductoInicio = 0;
+
+            try
+            {
+                DatabaseConnection db = new DatabaseConnection();
+                using NpgsqlConnection conexion = db.GetConnection();
+                conexion.Open();
+                ProductImageRepository.AsegurarTabla(conexion);
+
+                const string query = @"
+                    SELECT imagen_url, imagen_data
+                    FROM producto_imagenes
+                    WHERE producto_id = @productoId
+                    ORDER BY orden, id;";
+
+                using NpgsqlCommand cmd = new NpgsqlCommand(query, conexion);
+                cmd.Parameters.AddWithValue("@productoId", productoId);
+                using NpgsqlDataReader reader = cmd.ExecuteReader();
+                while (reader.Read())
+                {
+                    imagenesProductoInicio.Add(new ProductoImagenInicio(
+                        reader["imagen_url"].ToString() ?? string.Empty,
+                        reader["imagen_data"] is DBNull ? null : (byte[])reader["imagen_data"]));
+                }
+            }
+            catch
+            {
+                imagenesProductoInicio.Clear();
+            }
+        }
+
+        private void MostrarImagenProductoInicioActual()
         {
             imgProductoInicio.Source = null;
             imgProductoInicio.Visibility = Visibility.Collapsed;
             lblProductoInicioSinImagen.Visibility = Visibility.Visible;
+            ActualizarBotonesImagenProductoInicio();
 
-            if (string.IsNullOrWhiteSpace(imagenUrl))
+            if (imagenesProductoInicio.Count == 0)
             {
                 lblProductoInicioSinImagen.Text = "Sin imagen disponible";
                 return;
             }
 
-            var imagen = ProductImageService.CargarImagen(imagenUrl);
+            ProductoImagenInicio imagenActual = imagenesProductoInicio[indiceImagenProductoInicio];
+            byte[]? imagenData = imagenActual.Data;
+            string imagenUrl = imagenActual.Url;
+            var imagen = ProductImageService.CargarImagen(imagenData, imagenUrl);
             if (imagen == null)
             {
                 lblProductoInicioSinImagen.Text = "No se pudo cargar la imagen";
@@ -334,6 +373,35 @@ namespace RefaccionariaPOS.Views
             lblProductoInicioSinImagen.Visibility = Visibility.Collapsed;
         }
 
+        private void ActualizarBotonesImagenProductoInicio()
+        {
+            Visibility visibilidad = imagenesProductoInicio.Count > 1 ? Visibility.Visible : Visibility.Collapsed;
+            btnImagenAnterior.Visibility = visibilidad;
+            btnImagenSiguiente.Visibility = visibilidad;
+        }
+
+        private void BtnImagenAnterior_Click(object sender, RoutedEventArgs e)
+        {
+            if (imagenesProductoInicio.Count <= 1)
+            {
+                return;
+            }
+
+            indiceImagenProductoInicio = (indiceImagenProductoInicio - 1 + imagenesProductoInicio.Count) % imagenesProductoInicio.Count;
+            MostrarImagenProductoInicioActual();
+        }
+
+        private void BtnImagenSiguiente_Click(object sender, RoutedEventArgs e)
+        {
+            if (imagenesProductoInicio.Count <= 1)
+            {
+                return;
+            }
+
+            indiceImagenProductoInicio = (indiceImagenProductoInicio + 1) % imagenesProductoInicio.Count;
+            MostrarImagenProductoInicioActual();
+        }
+
         private void LimpiarVistaPreviaProductoInicio(string titulo, string detalle)
         {
             lblProductoInicioNombre.Text = titulo;
@@ -343,6 +411,9 @@ namespace RefaccionariaPOS.Views
             imgProductoInicio.Visibility = Visibility.Collapsed;
             lblProductoInicioSinImagen.Text = "Sin imagen disponible";
             lblProductoInicioSinImagen.Visibility = Visibility.Visible;
+            imagenesProductoInicio.Clear();
+            indiceImagenProductoInicio = 0;
+            ActualizarBotonesImagenProductoInicio();
         }
 
         private void BtnUsuarioActual_Click(object sender, RoutedEventArgs e)
@@ -883,11 +954,13 @@ namespace RefaccionariaPOS.Views
 
     public class ProductoInicio
     {
+        public int Id { get; set; }
         public string CodigoBarras { get; set; } = string.Empty;
         public string Nombre { get; set; } = string.Empty;
         public string Categoria { get; set; } = string.Empty;
         public decimal PrecioVenta { get; set; }
         public decimal StockActual { get; set; }
-        public string ImagenUrl { get; set; } = string.Empty;
     }
+
+    public sealed record ProductoImagenInicio(string Url, byte[]? Data);
 }

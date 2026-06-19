@@ -335,6 +335,45 @@ select:focus {
   font-weight: 950;
 }
 
+.image-nav {
+  position: absolute;
+  top: 50%;
+  z-index: 2;
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border: 1px solid rgba(226, 232, 240, 0.86);
+  border-radius: 50%;
+  color: #102033;
+  background: rgba(255, 255, 255, 0.88);
+  font-size: 1.15rem;
+  font-weight: 950;
+  transform: translateY(-50%);
+  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.16);
+}
+
+.image-nav.prev {
+  left: 10px;
+}
+
+.image-nav.next {
+  right: 10px;
+}
+
+.image-count {
+  position: absolute;
+  left: 10px;
+  bottom: 10px;
+  z-index: 2;
+  border-radius: 999px;
+  padding: 6px 9px;
+  color: #102033;
+  background: rgba(255, 255, 255, 0.88);
+  font-size: 0.72rem;
+  font-weight: 950;
+}
+
 .availability {
   position: absolute;
   right: 10px;

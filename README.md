@@ -68,7 +68,7 @@ La app crea automaticamente la tabla `cortes_caja` si no existe. Tambien queda l
 
 ## Catalogo web para clientes
 
-La carpeta `CatalogoWeb` contiene una pagina web de solo lectura para que los clientes consulten piezas en existencia, precios de venta, categorias e imagenes de productos cuando `imagen_url` este configurado en el POS.
+La carpeta `CatalogoWeb` contiene una pagina web de solo lectura para que los clientes consulten piezas en existencia, precios de venta, categorias e imagenes de productos usando la misma base de datos del POS.
 
 Para probarla en la computadora:
 
@@ -84,7 +84,7 @@ dotnet run --project .\CatalogoWeb\CatalogoWeb.csproj --urls "http://0.0.0.0:509
 
 Despues entra desde el celular a `http://IP-DE-LA-COMPUTADORA:5090`.
 
-El catalogo usa la misma variable `REFACCIONARIA_NUEVA_DB_CONNECTION`. Al iniciar agrega automaticamente las columnas `imagen_url` y `tipo_venta` a `productos` si aun no existen.
+El catalogo usa la misma variable `REFACCIONARIA_NUEVA_DB_CONNECTION`. Al iniciar agrega automaticamente las columnas `imagen_url` y `tipo_venta` a `productos`, y prepara `producto_imagenes` para servir imagenes guardadas en PostgreSQL.
 
 ## Despliegue seguro del catalogo
 
@@ -101,6 +101,6 @@ Recomendaciones:
 
 - Usa un usuario de Neon con los permisos minimos necesarios para leer productos.
 - No pegues la cadena de conexion en `appsettings.json`, `render.yaml`, `Dockerfile`, archivos `.env` ni commits.
-- Sube imagenes como URLs HTTPS publicas, por ejemplo Cloudinary o un bucket de storage. Las rutas locales de Windows solo funcionan en la computadora donde esta instalado el POS.
+- Las imagenes seleccionadas desde RefaxManager se guardan en `producto_imagenes.imagen_data`, por lo que el catalogo web puede mostrarlas desde la misma base. Tambien se siguen aceptando URLs HTTPS externas en `imagen_url`.
 - Si cambias la contrasena de Neon, actualiza solo la variable de entorno en Render y redeploya el servicio.
 - Render debe usar `/api/health` como health check.
