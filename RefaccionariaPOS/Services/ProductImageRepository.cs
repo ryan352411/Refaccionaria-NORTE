@@ -59,7 +59,7 @@ namespace RefaccionariaPOS.Services
                     ON producto_imagenes (producto_id, orden, id);
 
                 INSERT INTO producto_imagenes (producto_id, imagen_url, orden)
-                SELECT id, imagen_url
+                SELECT id, imagen_url, 0
                 FROM productos
                 WHERE COALESCE(imagen_url, '') <> ''
                   AND NOT EXISTS (
