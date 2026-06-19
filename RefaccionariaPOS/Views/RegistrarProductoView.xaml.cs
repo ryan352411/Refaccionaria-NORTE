@@ -1,7 +1,9 @@
 using Npgsql;
 using RefaccionariaPOS.Data;
+using RefaccionariaPOS.Services;
 using System;
 using System.Collections.Generic;
+using Microsoft.Win32;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -15,8 +17,9 @@ namespace RefaccionariaPOS.Views
 
         private const string QueryInsertarProducto = @"
             INSERT INTO productos
-            (codigo_barras, nombre, descripcion, costo_proveedor, precio_venta, stock_actual, stock_minimo, categoria, imagen_url, tipo_venta)
-            VALUES (@codigo, @nombre, @desc, @costo, @venta, @stock, @stockMinimo, @categoria, @imagenUrl, @tipoVenta);";
+            (codigo_barras, nombre, descripcion, costo_proveedor, precio_venta, stock_actual, stock_minimo, categoria, tipo_venta)
+            VALUES (@codigo, @nombre, @desc, @costo, @venta, @stock, @stockMinimo, @categoria, @tipoVenta)
+            RETURNING id;";
 
         private const string QueryActualizarProducto = @"
             UPDATE productos
@@ -26,17 +29,17 @@ namespace RefaccionariaPOS.Views
                 precio_venta = @venta,
                 stock_minimo = @stockMinimo,
                 categoria = @categoria,
-                imagen_url = @imagenUrl,
                 tipo_venta = @tipoVenta,
                 stock_actual = stock_actual + @stockAgregar
             WHERE id = @id;";
 
         private const string QueryBuscarProducto = @"
-            SELECT id, nombre, descripcion, costo_proveedor, precio_venta, stock_minimo, categoria,
-                   COALESCE(imagen_url, '') AS imagen_url,
-                   COALESCE(tipo_venta, 'Unidad') AS tipo_venta
-            FROM productos
-            WHERE codigo_barras = @codigo
+            SELECT p.id, p.nombre, p.descripcion, p.costo_proveedor, p.precio_venta, p.stock_minimo, p.categoria,
+                   COALESCE(pi.imagen_url, p.imagen_url, '') AS imagen_url,
+                   COALESCE(p.tipo_venta, 'Unidad') AS tipo_venta
+            FROM productos p
+            LEFT JOIN producto_imagenes pi ON pi.producto_id = p.id
+            WHERE p.codigo_barras = @codigo
             LIMIT 1;";
 
         private const string QueryCategorias = @"
@@ -148,12 +151,15 @@ namespace RefaccionariaPOS.Views
             using (NpgsqlConnection conexion = db.GetConnection())
             {
                 conexion.Open();
+                ProductImageRepository.AsegurarTabla(conexion);
 
                 using (NpgsqlCommand cmd = new NpgsqlCommand(QueryInsertarProducto, conexion))
                 {
+                    string imagenLocal = PrepararImagenLocal();
                     AgregarParametrosProducto(cmd, costo, precioVenta, stockMinimo);
                     cmd.Parameters.AddWithValue("@stock", stock);
-                    cmd.ExecuteNonQuery();
+                    int productoId = Convert.ToInt32(cmd.ExecuteScalar());
+                    ProductImageRepository.GuardarImagen(conexion, productoId, imagenLocal);
                 }
             }
         }
@@ -164,15 +170,23 @@ namespace RefaccionariaPOS.Views
             using (NpgsqlConnection conexion = db.GetConnection())
             {
                 conexion.Open();
+                ProductImageRepository.AsegurarTabla(conexion);
 
                 using (NpgsqlCommand cmd = new NpgsqlCommand(QueryActualizarProducto, conexion))
                 {
+                    string imagenLocal = PrepararImagenLocal();
                     AgregarParametrosProducto(cmd, costo, precioVenta, stockMinimo);
                     cmd.Parameters.AddWithValue("@stockAgregar", stockAgregar);
                     cmd.Parameters.AddWithValue("@id", idProducto);
                     cmd.ExecuteNonQuery();
+                    ProductImageRepository.GuardarImagen(conexion, idProducto, imagenLocal);
                 }
             }
+        }
+
+        private string PrepararImagenLocal()
+        {
+            return ProductImageService.GuardarImagenLocal(txtImagenUrl.Text.Trim(), txtCodigo.Text.Trim());
         }
 
         private void AgregarParametrosProducto(NpgsqlCommand cmd, decimal costo, decimal precioVenta, decimal stockMinimo)
@@ -184,8 +198,23 @@ namespace RefaccionariaPOS.Views
             cmd.Parameters.AddWithValue("@venta", precioVenta);
             cmd.Parameters.AddWithValue("@stockMinimo", stockMinimo);
             cmd.Parameters.AddWithValue("@categoria", ObtenerCategoria());
-            cmd.Parameters.AddWithValue("@imagenUrl", txtImagenUrl.Text.Trim());
             cmd.Parameters.AddWithValue("@tipoVenta", ObtenerTipoVenta());
+        }
+
+        private void BtnSeleccionarImagen_Click(object sender, RoutedEventArgs e)
+        {
+            OpenFileDialog dialogo = new OpenFileDialog
+            {
+                Title = "Seleccionar imagen del producto",
+                Filter = "Imagenes|*.jpg;*.jpeg;*.png;*.bmp;*.gif;*.webp|Todos los archivos|*.*",
+                CheckFileExists = true,
+                Multiselect = false
+            };
+
+            if (dialogo.ShowDialog(this) == true)
+            {
+                txtImagenUrl.Text = dialogo.FileName;
+            }
         }
 
         private void TxtCodigo_KeyDown(object sender, KeyEventArgs e)
@@ -351,6 +380,8 @@ namespace RefaccionariaPOS.Views
                 using (NpgsqlConnection conexion = db.GetConnection())
                 {
                     conexion.Open();
+                    AsegurarColumnasProducto(conexion);
+                    ProductImageRepository.AsegurarTabla(conexion);
 
                     using (NpgsqlCommand cmd = new NpgsqlCommand(QueryVerificarColumnas, conexion))
                     {
@@ -360,8 +391,6 @@ namespace RefaccionariaPOS.Views
                             AsegurarColumnasProducto(conexion);
                         }
                     }
-
-                    AsegurarColumnasProducto(conexion);
                 }
             }
             catch (Exception ex)

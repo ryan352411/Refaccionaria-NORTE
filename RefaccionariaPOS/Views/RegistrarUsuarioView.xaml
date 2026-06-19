@@ -41,6 +41,7 @@
                     <TextBlock Text="Rol" FontWeight="SemiBold" Foreground="#334155" Margin="0,0,0,6"/>
                     <ComboBox x:Name="cmbRol" Height="36" Padding="8,6" SelectedIndex="0" Margin="0,0,0,22">
                         <ComboBoxItem Content="Vendedor"/>
+                        <ComboBoxItem Content="Encargado de Inventario"/>
                         <ComboBoxItem Content="SuperAdmin"/>
                     </ComboBox>
 
@@ -70,7 +71,7 @@
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="ID" Binding="{Binding Id}" Width="65"/>
                             <DataGridTextColumn Header="Usuario" Binding="{Binding Username}" Width="*"/>
-                            <DataGridTextColumn Header="Rol" Binding="{Binding Rol}" Width="130"/>
+                            <DataGridTextColumn Header="Rol" Binding="{Binding Rol}" Width="180"/>
                             <DataGridTextColumn Header="Fecha de alta" Binding="{Binding FechaAlta, StringFormat={}{0:dd/MM/yyyy HH:mm}}" Width="160"/>
                         </DataGrid.Columns>
                     </DataGrid>

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Text;
 using System.Windows;
 using System.Windows.Controls;
@@ -10,12 +11,15 @@ using System.Windows.Threading;
 using Npgsql;
 using RefaccionariaPOS.Data;
 using RefaccionariaPOS.Security;
+using RefaccionariaPOS.Services;
 
 namespace RefaccionariaPOS.Views
 {
     public partial class MainView : Window
     {
+        private const string RolSuperAdmin = "SuperAdmin";
         private const string RolVendedor = "Vendedor";
+        private const string RolEncargadoInventario = "Encargado de Inventario";
         private static readonly Brush InventarioNormal = new SolidColorBrush(Color.FromRgb(36, 59, 85));
         private static readonly Brush InventarioAdvertencia = new SolidColorBrush(Color.FromRgb(245, 158, 11));
         private static readonly Brush InventarioCritico = new SolidColorBrush(Color.FromRgb(220, 38, 38));
@@ -28,6 +32,8 @@ namespace RefaccionariaPOS.Views
         private string rolUsuarioActual;
         private readonly List<InventarioAlerta> alertasInventario = new();
         private readonly HashSet<string> permisosActuales = new(StringComparer.OrdinalIgnoreCase);
+        private readonly ObservableCollection<ProductoInicio> productosInicio = new();
+        private readonly ObservableCollection<ProductoInicio> productosInicioFiltrados = new();
         private readonly StringBuilder scannerBuffer = new();
         private DateTime ultimoCaracterScanner = DateTime.MinValue;
         private Window? vistaEmbebidaActual;
@@ -44,6 +50,7 @@ namespace RefaccionariaPOS.Views
             PreviewKeyDown += MainView_PreviewKeyDown;
             CargarPermisosActuales();
             ConfigurarPermisosPorRol();
+            ConfigurarBuscadorInicio();
             CargarAlertasInventario();
         }
 
@@ -62,7 +69,7 @@ namespace RefaccionariaPOS.Views
             btnCorteCaja.IsEnabled = TienePermiso("corte.ver");
             btnUsuarios.IsEnabled = TienePermiso("usuarios.permisos");
 
-            if (!EsVendedorExacto() || permisosActuales.Count > 0)
+            if (!EsRolRestringido() || permisosActuales.Count > 0)
             {
                 return;
             }
@@ -73,6 +80,16 @@ namespace RefaccionariaPOS.Views
             btnReimprimir.IsEnabled = false;
             btnCorteCaja.IsEnabled = false;
             btnUsuarios.IsEnabled = false;
+
+            if (EsEncargadoInventario())
+            {
+                btnVenta.IsEnabled = false;
+                btnArticulosComunes.IsEnabled = false;
+                btnInventario.IsEnabled = true;
+                lblSubtitulo.Text = "Inventario activo. Registra productos, actualiza stock e imagenes.";
+                return;
+            }
+
             lblSubtitulo.Text = "Terminal de cobro activa. Registra ventas y consulta inventario.";
         }
 
@@ -157,6 +174,175 @@ namespace RefaccionariaPOS.Views
         private void BtnNotificaciones_Click(object sender, RoutedEventArgs e)
         {
             MostrarVentanaNotificaciones();
+        }
+
+        private void ConfigurarBuscadorInicio()
+        {
+            dgProductosInicio.ItemsSource = productosInicioFiltrados;
+            CargarProductosInicio();
+        }
+
+        private void CargarProductosInicio()
+        {
+            productosInicio.Clear();
+            productosInicioFiltrados.Clear();
+
+            try
+            {
+                DatabaseConnection db = new DatabaseConnection();
+                using (NpgsqlConnection conexion = db.GetConnection())
+                {
+                    conexion.Open();
+                    ProductImageRepository.AsegurarTabla(conexion);
+
+                    const string query = @"
+                        SELECT p.codigo_barras, p.nombre, p.categoria, p.precio_venta, p.stock_actual,
+                               COALESCE(pi.imagen_url, p.imagen_url, '') AS imagen_url
+                        FROM productos p
+                        LEFT JOIN producto_imagenes pi ON pi.producto_id = p.id
+                        ORDER BY p.nombre ASC;";
+
+                    using (NpgsqlCommand cmd = new NpgsqlCommand(query, conexion))
+                    using (NpgsqlDataReader reader = cmd.ExecuteReader())
+                    {
+                        while (reader.Read())
+                        {
+                            productosInicio.Add(new ProductoInicio
+                            {
+                                CodigoBarras = reader["codigo_barras"].ToString() ?? string.Empty,
+                                Nombre = reader["nombre"].ToString() ?? string.Empty,
+                                Categoria = reader["categoria"].ToString() ?? "General",
+                                PrecioVenta = Convert.ToDecimal(reader["precio_venta"]),
+                                StockActual = Convert.ToDecimal(reader["stock_actual"]),
+                                ImagenUrl = reader["imagen_url"].ToString() ?? string.Empty
+                            });
+                        }
+                    }
+                }
+
+                FiltrarProductosInicio();
+                if (productosInicioFiltrados.Count > 0)
+                {
+                    dgProductosInicio.SelectedIndex = 0;
+                }
+                else
+                {
+                    LimpiarVistaPreviaProductoInicio("No hay productos registrados.", "Agrega productos desde Inventario.");
+                }
+            }
+            catch (Exception ex)
+            {
+                LimpiarVistaPreviaProductoInicio("No se pudieron cargar productos.", ex.Message);
+            }
+        }
+
+        private void TxtBuscarProductoInicio_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            FiltrarProductosInicio();
+        }
+
+        private void TxtBuscarProductoInicio_KeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Key != Key.Enter || dgProductosInicio.SelectedItem is not ProductoInicio producto)
+            {
+                return;
+            }
+
+            e.Handled = true;
+            MostrarProductoInicio(producto);
+        }
+
+        private void DgProductosInicio_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (dgProductosInicio.SelectedItem is ProductoInicio producto)
+            {
+                MostrarProductoInicio(producto);
+            }
+        }
+
+        private void FiltrarProductosInicio()
+        {
+            if (txtBuscarProductoInicio == null)
+            {
+                return;
+            }
+
+            string busqueda = txtBuscarProductoInicio.Text.Trim();
+            productosInicioFiltrados.Clear();
+
+            foreach (ProductoInicio producto in productosInicio)
+            {
+                if (CoincideProductoInicio(producto, busqueda))
+                {
+                    productosInicioFiltrados.Add(producto);
+                }
+            }
+
+            if (productosInicioFiltrados.Count == 0)
+            {
+                LimpiarVistaPreviaProductoInicio("Sin resultados", "Prueba con otro nombre, codigo o categoria.");
+                return;
+            }
+
+            if (dgProductosInicio.SelectedItem is not ProductoInicio seleccionado || !productosInicioFiltrados.Contains(seleccionado))
+            {
+                dgProductosInicio.SelectedIndex = 0;
+            }
+        }
+
+        private static bool CoincideProductoInicio(ProductoInicio producto, string busqueda)
+        {
+            if (string.IsNullOrWhiteSpace(busqueda))
+            {
+                return true;
+            }
+
+            return producto.Nombre.Contains(busqueda, StringComparison.OrdinalIgnoreCase)
+                || producto.CodigoBarras.Contains(busqueda, StringComparison.OrdinalIgnoreCase)
+                || producto.Categoria.Contains(busqueda, StringComparison.OrdinalIgnoreCase);
+        }
+
+        private void MostrarProductoInicio(ProductoInicio producto)
+        {
+            lblProductoInicioNombre.Text = producto.Nombre;
+            lblProductoInicioDatos.Text = $"{producto.CodigoBarras}  -  {producto.Categoria}  -  Stock: {producto.StockActual:0.###}";
+            lblProductoInicioPrecio.Text = producto.PrecioVenta.ToString("C");
+            MostrarImagenProductoInicio(producto.ImagenUrl);
+        }
+
+        private void MostrarImagenProductoInicio(string imagenUrl)
+        {
+            imgProductoInicio.Source = null;
+            imgProductoInicio.Visibility = Visibility.Collapsed;
+            lblProductoInicioSinImagen.Visibility = Visibility.Visible;
+
+            if (string.IsNullOrWhiteSpace(imagenUrl))
+            {
+                lblProductoInicioSinImagen.Text = "Sin imagen disponible";
+                return;
+            }
+
+            var imagen = ProductImageService.CargarImagen(imagenUrl);
+            if (imagen == null)
+            {
+                lblProductoInicioSinImagen.Text = "No se pudo cargar la imagen";
+                return;
+            }
+
+            imgProductoInicio.Source = imagen;
+            imgProductoInicio.Visibility = Visibility.Visible;
+            lblProductoInicioSinImagen.Visibility = Visibility.Collapsed;
+        }
+
+        private void LimpiarVistaPreviaProductoInicio(string titulo, string detalle)
+        {
+            lblProductoInicioNombre.Text = titulo;
+            lblProductoInicioDatos.Text = detalle;
+            lblProductoInicioPrecio.Text = "$0.00";
+            imgProductoInicio.Source = null;
+            imgProductoInicio.Visibility = Visibility.Collapsed;
+            lblProductoInicioSinImagen.Text = "Sin imagen disponible";
+            lblProductoInicioSinImagen.Visibility = Visibility.Visible;
         }
 
         private void BtnUsuarioActual_Click(object sender, RoutedEventArgs e)
@@ -411,6 +597,21 @@ namespace RefaccionariaPOS.Views
             return rolUsuarioActual == RolVendedor;
         }
 
+        private bool EsEncargadoInventario()
+        {
+            return rolUsuarioActual.Equals(RolEncargadoInventario, StringComparison.OrdinalIgnoreCase);
+        }
+
+        private bool EsSuperAdmin()
+        {
+            return rolUsuarioActual.Equals(RolSuperAdmin, StringComparison.OrdinalIgnoreCase);
+        }
+
+        private bool EsRolRestringido()
+        {
+            return EsVendedorExacto() || EsEncargadoInventario();
+        }
+
         private bool EsVendedorInventario()
         {
             return rolUsuarioActual.Equals(RolVendedor, StringComparison.OrdinalIgnoreCase);
@@ -423,12 +624,22 @@ namespace RefaccionariaPOS.Views
                 return permisosActuales.Contains(clave);
             }
 
-            if (!EsVendedorExacto())
+            if (EsSuperAdmin())
             {
                 return true;
             }
 
-            return clave is "ventas.abrir" or "inventario.ver";
+            if (EsEncargadoInventario())
+            {
+                return clave is "inventario.ver" or "inventario.editar";
+            }
+
+            if (EsVendedorExacto())
+            {
+                return clave is "ventas.abrir" or "inventario.ver";
+            }
+
+            return false;
         }
 
         private void CargarPermisosActuales()
@@ -574,6 +785,8 @@ namespace RefaccionariaPOS.Views
 
             ventana.Content = null;
             contentHost.Content = null;
+            vistaInicio.Visibility = Visibility.Collapsed;
+            contentHost.Visibility = Visibility.Visible;
 
             if (contenido is FrameworkElement elemento)
             {
@@ -584,7 +797,7 @@ namespace RefaccionariaPOS.Views
             }
 
             vistaEmbebidaActual = ventana;
-            contentHost.Content = contenido;
+            contentHost.Content = CrearContenedorModulo(contenido);
 
             Dispatcher.BeginInvoke(new Action(() =>
             {
@@ -602,6 +815,54 @@ namespace RefaccionariaPOS.Views
                 }
             }), DispatcherPriority.Loaded);
         }
+
+        private Grid CrearContenedorModulo(UIElement contenido)
+        {
+            Grid contenedor = new Grid();
+            contenedor.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            contenedor.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+
+            DockPanel barra = new DockPanel
+            {
+                Background = new SolidColorBrush(Color.FromRgb(243, 245, 248)),
+                Margin = new Thickness(18, 12, 18, 0)
+            };
+
+            Button btnCerrar = new Button
+            {
+                Content = "Cerrar",
+                Width = 92,
+                Height = 34,
+                HorizontalAlignment = HorizontalAlignment.Right,
+                Background = new SolidColorBrush(Color.FromRgb(220, 38, 38)),
+                Foreground = Brushes.White,
+                FontWeight = FontWeights.Bold,
+                BorderThickness = new Thickness(0),
+                Cursor = Cursors.Hand
+            };
+            btnCerrar.Click += (_, _) => VolverAlBuscadorInicio();
+
+            DockPanel.SetDock(btnCerrar, Dock.Right);
+            barra.Children.Add(btnCerrar);
+
+            Grid.SetRow(barra, 0);
+            Grid.SetRow(contenido, 1);
+            contenedor.Children.Add(barra);
+            contenedor.Children.Add(contenido);
+
+            return contenedor;
+        }
+
+        private void VolverAlBuscadorInicio()
+        {
+            contentHost.Content = null;
+            contentHost.Visibility = Visibility.Collapsed;
+            vistaEmbebidaActual = null;
+            vistaInicio.Visibility = Visibility.Visible;
+            CargarProductosInicio();
+            CargarAlertasInventario();
+            txtBuscarProductoInicio.Focus();
+        }
     }
 
     public class InventarioAlerta
@@ -618,5 +879,15 @@ namespace RefaccionariaPOS.Views
     {
         public int Id { get; set; }
         public string Username { get; set; } = string.Empty;
+    }
+
+    public class ProductoInicio
+    {
+        public string CodigoBarras { get; set; } = string.Empty;
+        public string Nombre { get; set; } = string.Empty;
+        public string Categoria { get; set; } = string.Empty;
+        public decimal PrecioVenta { get; set; }
+        public decimal StockActual { get; set; }
+        public string ImagenUrl { get; set; } = string.Empty;
     }
 }

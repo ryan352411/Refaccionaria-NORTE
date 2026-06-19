@@ -29,8 +29,23 @@
                 <TextBlock Text="Descripcion:" Margin="0,10,0,2" FontWeight="SemiBold"/>
                 <TextBox x:Name="txtDescripcion" Height="70" TextWrapping="Wrap" AcceptsReturn="True" Padding="8"/>
 
-                <TextBlock Text="Imagen del producto (ruta o URL):" Margin="0,10,0,2" FontWeight="SemiBold"/>
-                <TextBox x:Name="txtImagenUrl" Height="36" Padding="8,7"/>
+                <TextBlock Text="Imagen del producto:" Margin="0,10,0,2" FontWeight="SemiBold"/>
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBox x:Name="txtImagenUrl" Height="36" Padding="8,7" IsReadOnly="True"/>
+                    <Button Grid.Column="1"
+                            Content="Seleccionar"
+                            Height="36"
+                            MinWidth="112"
+                            Margin="8,0,0,0"
+                            Background="#2980B9"
+                            Foreground="White"
+                            FontWeight="Bold"
+                            Click="BtnSeleccionarImagen_Click"/>
+                </Grid>
 
                 <TextBlock Text="Forma de venta:" Margin="0,10,0,2" FontWeight="SemiBold"/>
                 <ComboBox x:Name="cmbTipoVenta" Height="38" Padding="8,6" SelectedIndex="0">

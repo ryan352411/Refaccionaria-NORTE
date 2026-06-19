@@ -11,6 +11,9 @@ namespace RefaccionariaPOS.Views
 {
     public partial class RegistrarUsuarioView : Window
     {
+        private const string RolSuperAdmin = "SuperAdmin";
+        private const string RolVendedor = "Vendedor";
+        private const string RolEncargadoInventario = "Encargado de Inventario";
         private readonly ObservableCollection<PermisoUsuario> permisosUsuario = new();
         private int? usuarioPermisosId;
 
@@ -157,7 +160,7 @@ namespace RefaccionariaPOS.Views
                     conexion.Open();
                     using (NpgsqlTransaction transaction = conexion.BeginTransaction())
                     {
-                        if (usuario.Rol.Equals("SuperAdmin", StringComparison.OrdinalIgnoreCase) && ObtenerTotalSuperAdmins(conexion, transaction) <= 1)
+                        if (usuario.Rol.Equals(RolSuperAdmin, StringComparison.OrdinalIgnoreCase) && ObtenerTotalSuperAdmins(conexion, transaction) <= 1)
                         {
                             MessageBox.Show("No puedes eliminar el ultimo usuario SuperAdmin.", "Accion no permitida", MessageBoxButton.OK, MessageBoxImage.Warning);
                             return;
@@ -190,8 +193,9 @@ namespace RefaccionariaPOS.Views
 
         private static int ObtenerTotalSuperAdmins(NpgsqlConnection conexion, NpgsqlTransaction transaction)
         {
-            using (NpgsqlCommand cmd = new NpgsqlCommand("SELECT COUNT(*) FROM usuarios WHERE rol ILIKE 'SuperAdmin'", conexion, transaction))
+            using (NpgsqlCommand cmd = new NpgsqlCommand("SELECT COUNT(*) FROM usuarios WHERE rol ILIKE @rol", conexion, transaction))
             {
+                cmd.Parameters.AddWithValue("@rol", RolSuperAdmin);
                 return Convert.ToInt32(cmd.ExecuteScalar());
             }
         }
@@ -233,7 +237,7 @@ namespace RefaccionariaPOS.Views
                             {
                                 Id = Convert.ToInt32(reader["id"]),
                                 Username = reader["username"].ToString() ?? string.Empty,
-                                Rol = reader["rol"].ToString() ?? "Vendedor",
+                                Rol = reader["rol"].ToString() ?? RolVendedor,
                                 FechaAlta = Convert.ToDateTime(reader["fecha_alta"])
                             });
                         }
@@ -274,8 +278,9 @@ namespace RefaccionariaPOS.Views
                     const string query = @"
                         SELECT p.id, p.clave, p.descripcion,
                                COALESCE(up.habilitado,
-                                   CASE WHEN @rol ILIKE 'SuperAdmin' THEN true
-                                        WHEN p.clave IN ('ventas.abrir', 'inventario.ver') THEN true
+                                   CASE WHEN @rol ILIKE @rolSuperAdmin THEN true
+                                        WHEN @rol ILIKE @rolEncargadoInventario AND p.clave IN ('inventario.ver', 'inventario.editar') THEN true
+                                        WHEN @rol ILIKE @rolVendedor AND p.clave IN ('ventas.abrir', 'inventario.ver') THEN true
                                         ELSE false
                                    END) AS habilitado
                         FROM permisos p
@@ -287,6 +292,9 @@ namespace RefaccionariaPOS.Views
                     {
                         cmd.Parameters.AddWithValue("@usuarioId", usuario.Id);
                         cmd.Parameters.AddWithValue("@rol", usuario.Rol);
+                        cmd.Parameters.AddWithValue("@rolSuperAdmin", RolSuperAdmin);
+                        cmd.Parameters.AddWithValue("@rolEncargadoInventario", RolEncargadoInventario);
+                        cmd.Parameters.AddWithValue("@rolVendedor", RolVendedor);
 
                         using (NpgsqlDataReader reader = cmd.ExecuteReader())
                         {

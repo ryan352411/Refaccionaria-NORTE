@@ -1,16 +1,15 @@
 using Npgsql;
 using RefaccionariaPOS.Data;
 using RefaccionariaPOS.Models;
+using RefaccionariaPOS.Services;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Globalization;
-using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
 using System.Windows.Media;
-using System.Windows.Media.Imaging;
 
 namespace RefaccionariaPOS.Views
 {
@@ -20,15 +19,16 @@ namespace RefaccionariaPOS.Views
         private const string CategoriaGeneral = "General";
 
         private const string QueryProductos = @"
-            SELECT id, codigo_barras, nombre, descripcion, costo_proveedor, precio_venta,
-                   stock_actual, stock_minimo, categoria,
-                   COALESCE(imagen_url, '') AS imagen_url,
-                   COALESCE(tipo_venta, 'Unidad') AS tipo_venta
-            FROM productos
-            WHERE (nombre ILIKE @busqueda OR codigo_barras ILIKE @busqueda OR descripcion ILIKE @busqueda)
+            SELECT p.id, p.codigo_barras, p.nombre, p.descripcion, p.costo_proveedor, p.precio_venta,
+                   p.stock_actual, p.stock_minimo, p.categoria,
+                   COALESCE(pi.imagen_url, p.imagen_url, '') AS imagen_url,
+                   COALESCE(p.tipo_venta, 'Unidad') AS tipo_venta
+            FROM productos p
+            LEFT JOIN producto_imagenes pi ON pi.producto_id = p.id
+            WHERE (p.nombre ILIKE @busqueda OR p.codigo_barras ILIKE @busqueda OR p.descripcion ILIKE @busqueda)
               AND (@categoria = 'Todas' OR categoria = @categoria)
               AND (@soloBajoStock = false OR stock_actual <= stock_minimo)
-            ORDER BY nombre ASC;";
+            ORDER BY p.nombre ASC;";
 
         private const string QueryCategorias = @"
             SELECT DISTINCT categoria
@@ -85,6 +85,7 @@ namespace RefaccionariaPOS.Views
             using (NpgsqlConnection conexion = db.GetConnection())
             {
                 conexion.Open();
+                ProductImageRepository.AsegurarTabla(conexion);
 
                 using (NpgsqlCommand cmd = new NpgsqlCommand(QueryProductos, conexion))
                 {
@@ -295,6 +296,8 @@ namespace RefaccionariaPOS.Views
                 using (NpgsqlConnection conexion = db.GetConnection())
                 {
                     conexion.Open();
+                    AsegurarColumnasProducto(conexion);
+                    ProductImageRepository.AsegurarTabla(conexion);
 
                     using (NpgsqlCommand cmd = new NpgsqlCommand(QueryVerificarColumnas, conexion))
                     {
@@ -304,8 +307,6 @@ namespace RefaccionariaPOS.Views
                             AsegurarColumnasProducto(conexion);
                         }
                     }
-
-                    AsegurarColumnasProducto(conexion);
                 }
             }
             catch (Exception ex)
@@ -403,30 +404,7 @@ namespace RefaccionariaPOS.Views
         public object? Convert(object value, Type targetType, object parameter, CultureInfo culture)
         {
             string ruta = value?.ToString() ?? string.Empty;
-            if (string.IsNullOrWhiteSpace(ruta))
-            {
-                return null;
-            }
-
-            try
-            {
-                Uri uri = Uri.TryCreate(ruta, UriKind.Absolute, out Uri? absoluta)
-                    ? absoluta
-                    : new Uri(Path.GetFullPath(ruta), UriKind.Absolute);
-
-                BitmapImage imagen = new BitmapImage();
-                imagen.BeginInit();
-                imagen.CacheOption = BitmapCacheOption.OnLoad;
-                imagen.UriSource = uri;
-                imagen.DecodePixelWidth = 92;
-                imagen.EndInit();
-                imagen.Freeze();
-                return imagen;
-            }
-            catch
-            {
-                return null;
-            }
+            return ProductImageService.CargarImagen(ruta, 92);
         }
 
         public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)

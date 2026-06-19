@@ -7,6 +7,7 @@
         MinHeight="640"
         MinWidth="1060"
         WindowStartupLocation="CenterScreen"
+        WindowState="Maximized"
         Background="#F3F5F8">
 
     <Window.Resources>
@@ -115,40 +116,91 @@
             </Grid>
         </Border>
 
-        <ContentControl x:Name="contentHost" Grid.Row="1">
-            <ContentControl.Content>
-                <Grid Margin="30">
+        <ContentControl x:Name="contentHost" Grid.Row="1"/>
+
+        <Grid x:Name="vistaInicio" Grid.Row="1" Margin="30">
                     <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
 
-                    <StackPanel Grid.Row="0" Margin="0,4,0,24">
-                        <TextBlock Text="Panel de operacion" FontSize="30" FontWeight="Bold" Foreground="#1E272E"/>
+                    <StackPanel Grid.Row="0" Margin="0,4,0,18">
+                        <TextBlock Text="Buscar productos" FontSize="30" FontWeight="Bold" Foreground="#1E272E"/>
                         <TextBlock x:Name="lblSubtitulo"
-                                   Text="Selecciona una opcion del menu superior para empezar."
+                                   Text="Consulta refacciones por nombre, codigo o categoria."
                                    FontSize="14"
                                    Foreground="#6B7785"
                                    Margin="0,8,0,0"/>
                     </StackPanel>
 
-                    <UniformGrid Grid.Row="1" Columns="2" VerticalAlignment="Top" Height="160">
-                        <Border Background="White" CornerRadius="8" Margin="10" Padding="22" BorderBrush="#E2E8F0" BorderThickness="1">
-                            <StackPanel VerticalAlignment="Center">
-                                <TextBlock Text="Acceso rapido" FontSize="17" FontWeight="Bold" Foreground="#1E272E"/>
-                                <TextBlock Text="El escaner de barras esta activo en la caja de cobro." FontSize="13" Foreground="#7F8C8D" Margin="0,6,0,0" TextWrapping="Wrap"/>
-                            </StackPanel>
+                    <Border Grid.Row="1" Background="White" CornerRadius="8" Padding="14" BorderBrush="#D9E2EC" BorderThickness="1" Margin="0,0,0,18">
+                        <TextBox x:Name="txtBuscarProductoInicio"
+                                 Height="40"
+                                 FontSize="15"
+                                 Padding="12,8"
+                                 TextChanged="TxtBuscarProductoInicio_TextChanged"
+                                 KeyDown="TxtBuscarProductoInicio_KeyDown"/>
+                    </Border>
+
+                    <Grid Grid.Row="2">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="2*"/>
+                            <ColumnDefinition Width="18"/>
+                            <ColumnDefinition Width="1.05*"/>
+                        </Grid.ColumnDefinitions>
+
+                        <Border Grid.Column="0" Background="White" CornerRadius="8" Padding="16" BorderBrush="#D9E2EC" BorderThickness="1">
+                            <DataGrid x:Name="dgProductosInicio"
+                                      AutoGenerateColumns="False"
+                                      IsReadOnly="True"
+                                      CanUserAddRows="False"
+                                      RowHeaderWidth="0"
+                                      SelectionMode="Single"
+                                      HeadersVisibility="Column"
+                                      AlternatingRowBackground="#F8FAFC"
+                                      SelectionChanged="DgProductosInicio_SelectionChanged">
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Header="Codigo" Binding="{Binding CodigoBarras}" Width="130"/>
+                                    <DataGridTextColumn Header="Producto" Binding="{Binding Nombre}" Width="*"/>
+                                    <DataGridTextColumn Header="Categoria" Binding="{Binding Categoria}" Width="140"/>
+                                    <DataGridTextColumn Header="Precio" Binding="{Binding PrecioVenta, StringFormat={}{0:C}}" Width="110"/>
+                                    <DataGridTextColumn Header="Stock" Binding="{Binding StockActual}" Width="85"/>
+                                </DataGrid.Columns>
+                            </DataGrid>
                         </Border>
 
-                        <Border Background="White" CornerRadius="8" Margin="10" Padding="22" BorderBrush="#E2E8F0" BorderThickness="1">
-                            <StackPanel VerticalAlignment="Center">
-                                <TextBlock Text="Base de datos" FontSize="17" FontWeight="Bold" Foreground="#1E272E"/>
-                                <TextBlock Text="Conexion con Neon PostgreSQL configurada para ventas e inventario." FontSize="13" Foreground="#7F8C8D" Margin="0,6,0,0" TextWrapping="Wrap"/>
-                            </StackPanel>
+                        <Border Grid.Column="2" Background="White" CornerRadius="8" Padding="18" BorderBrush="#D9E2EC" BorderThickness="1">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+
+                                <StackPanel Grid.Row="0" Margin="0,0,0,14">
+                                    <TextBlock x:Name="lblProductoInicioNombre" Text="Selecciona un producto" FontSize="19" FontWeight="Bold" Foreground="#1E272E" TextWrapping="Wrap"/>
+                                    <TextBlock x:Name="lblProductoInicioDatos" Text="La imagen aparecera aqui." FontSize="13" Foreground="#64748B" Margin="0,6,0,0" TextWrapping="Wrap"/>
+                                </StackPanel>
+
+                                <Border Grid.Row="1" Background="#F8FAFC" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="8" Padding="10">
+                                    <Grid>
+                                        <Image x:Name="imgProductoInicio" Stretch="Uniform" Visibility="Collapsed"/>
+                                        <TextBlock x:Name="lblProductoInicioSinImagen"
+                                                   Text="Sin imagen disponible"
+                                                   Foreground="#94A3B8"
+                                                   FontSize="16"
+                                                   FontWeight="SemiBold"
+                                                   HorizontalAlignment="Center"
+                                                   VerticalAlignment="Center"
+                                                   TextAlignment="Center"/>
+                                    </Grid>
+                                </Border>
+
+                                <TextBlock x:Name="lblProductoInicioPrecio" Grid.Row="2" Text="$0.00" FontSize="28" FontWeight="Black" Foreground="#16A34A" Margin="0,16,0,0"/>
+                            </Grid>
                         </Border>
-                    </UniformGrid>
-                </Grid>
-            </ContentControl.Content>
-        </ContentControl>
+                    </Grid>
+        </Grid>
     </Grid>
 </Window>
