@@ -36,7 +36,8 @@ namespace RefaccionariaPOS.Views
                                COALESCE(u.username, 'Sin usuario') AS vendedor
                         FROM ventas v
                         LEFT JOIN usuarios u ON u.id = v.usuario_id
-                        ORDER BY v.fecha_venta DESC";
+                        ORDER BY v.fecha_venta DESC
+                        LIMIT 250";
 
                     using (NpgsqlCommand cmd = new NpgsqlCommand(query, conexion))
                     using (NpgsqlDataReader reader = cmd.ExecuteReader())

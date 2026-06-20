@@ -48,20 +48,12 @@ namespace RefaccionariaPOS.Views
             WHERE categoria IS NOT NULL AND categoria <> ''
             ORDER BY categoria;";
 
-        private const string QueryVerificarColumnas = @"
-            SELECT COUNT(*)
-            FROM information_schema.columns
-            WHERE table_schema = 'public'
-              AND table_name = 'productos'
-              AND column_name IN ('stock_minimo', 'categoria', 'imagen_url', 'tipo_venta');";
-
         private int? productoExistenteId;
         private string ultimoCodigoConsultado = string.Empty;
 
         public RegistrarProductoView()
         {
             InitializeComponent();
-            VerificarColumnasInventario();
             CargarCategorias();
             Loaded += (_, _) => txtCodigo.Focus();
         }
@@ -151,7 +143,6 @@ namespace RefaccionariaPOS.Views
             using (NpgsqlConnection conexion = db.GetConnection())
             {
                 conexion.Open();
-                ProductImageRepository.AsegurarTabla(conexion);
 
                 using (NpgsqlCommand cmd = new NpgsqlCommand(QueryInsertarProducto, conexion))
                 {
@@ -170,7 +161,6 @@ namespace RefaccionariaPOS.Views
             using (NpgsqlConnection conexion = db.GetConnection())
             {
                 conexion.Open();
-                ProductImageRepository.AsegurarTabla(conexion);
 
                 using (NpgsqlCommand cmd = new NpgsqlCommand(QueryActualizarProducto, conexion))
                 {
@@ -372,33 +362,6 @@ namespace RefaccionariaPOS.Views
             return string.IsNullOrWhiteSpace(categoria) ? CategoriaGeneral : categoria;
         }
 
-        private void VerificarColumnasInventario()
-        {
-            try
-            {
-                DatabaseConnection db = new DatabaseConnection();
-                using (NpgsqlConnection conexion = db.GetConnection())
-                {
-                    conexion.Open();
-                    AsegurarColumnasProducto(conexion);
-                    ProductImageRepository.AsegurarTabla(conexion);
-
-                    using (NpgsqlCommand cmd = new NpgsqlCommand(QueryVerificarColumnas, conexion))
-                    {
-                        int columnas = Convert.ToInt32(cmd.ExecuteScalar());
-                        if (columnas < 4)
-                        {
-                            AsegurarColumnasProducto(conexion);
-                        }
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show("No se pudo verificar la estructura de inventario: " + ex.Message, "Producto", MessageBoxButton.OK, MessageBoxImage.Warning);
-            }
-        }
-
         private void BtnCancelar_Click(object sender, RoutedEventArgs e)
         {
             Close();
@@ -424,21 +387,5 @@ namespace RefaccionariaPOS.Views
             cmbTipoVenta.SelectedIndex = 0;
         }
 
-        private static void AsegurarColumnasProducto(NpgsqlConnection conexion)
-        {
-            const string query = @"
-                ALTER TABLE productos
-                    ADD COLUMN IF NOT EXISTS imagen_url text NOT NULL DEFAULT '',
-                    ADD COLUMN IF NOT EXISTS tipo_venta varchar(20) NOT NULL DEFAULT 'Unidad';
-
-                ALTER TABLE productos
-                    ALTER COLUMN stock_actual TYPE numeric(12, 3) USING stock_actual::numeric,
-                    ALTER COLUMN stock_minimo TYPE numeric(12, 3) USING stock_minimo::numeric;";
-
-            using (NpgsqlCommand cmd = new NpgsqlCommand(query, conexion))
-            {
-                cmd.ExecuteNonQuery();
-            }
-        }
     }
 }

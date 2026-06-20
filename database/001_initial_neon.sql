@@ -59,6 +59,17 @@ CREATE INDEX IF NOT EXISTS idx_productos_stock_bajo ON productos (stock_actual, 
 CREATE INDEX IF NOT EXISTS idx_ventas_fecha ON ventas (fecha_venta DESC);
 CREATE INDEX IF NOT EXISTS idx_detalles_venta_venta_id ON detalles_venta (venta_id);
 
-INSERT INTO usuarios (username, password_hash, rol)
-VALUES ('admin', '240be518fabd2724ddb6f04eeb1da5967448d7e831c08c8fa822809f74c720a9', 'SuperAdmin')
-ON CONFLICT (username) DO NOTHING;
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
+DO $$
+DECLARE
+    v_password text := encode(gen_random_bytes(9), 'base64');
+BEGIN
+    INSERT INTO usuarios (username, password_hash, rol)
+    VALUES ('admin', encode(digest(v_password, 'sha256'), 'hex'), 'SuperAdmin')
+    ON CONFLICT (username) DO NOTHING;
+
+    IF FOUND THEN
+        RAISE NOTICE 'Usuario admin creado. Contraseña inicial (anótala, no se mostrará de nuevo): %', v_password;
+    END IF;
+END $$;

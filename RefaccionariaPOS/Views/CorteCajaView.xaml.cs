@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Printing;
 using System.IO;
+using System.Text.RegularExpressions;
 using System.Windows;
 
 namespace RefaccionariaPOS.Views
@@ -460,8 +461,15 @@ namespace RefaccionariaPOS.Views
                 : texto.Substring(0, longitudMaxima);
         }
 
+        private static readonly Regex IdentificadorSeguroRegex = new(@"^[a-z_][a-z0-9_]*$", RegexOptions.Compiled);
+
         private static string QuoteIdentifier(string valor)
         {
+            if (string.IsNullOrEmpty(valor) || !IdentificadorSeguroRegex.IsMatch(valor))
+            {
+                throw new InvalidOperationException("Identificador de base de datos no válido: " + valor);
+            }
+
             return "\"" + valor.Replace("\"", "\"\"") + "\"";
         }
 

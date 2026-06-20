@@ -37,6 +37,8 @@ namespace RefaccionariaPOS.Views
         private readonly StringBuilder scannerBuffer = new();
         private DateTime ultimoCaracterScanner = DateTime.MinValue;
         private Window? vistaEmbebidaActual;
+        private List<ProductoInicio> cacheProductosInicio = new();
+        private DateTime ultimaCargaProductosInicio = DateTime.MinValue;
 
         public MainView(int idUsuario, string usuario, string rol)
         {
@@ -182,57 +184,71 @@ namespace RefaccionariaPOS.Views
             CargarProductosInicio();
         }
 
-        private void CargarProductosInicio()
+        private async void CargarProductosInicio()
         {
+            bool usarCache = DateTime.Now.Subtract(ultimaCargaProductosInicio).TotalSeconds < 300 && cacheProductosInicio.Count > 0;
+
+            if (!usarCache)
+            {
+                try
+                {
+                    DatabaseConnection db = new DatabaseConnection();
+                    using (NpgsqlConnection conexion = db.GetConnection())
+                    {
+                        await conexion.OpenAsync();
+
+                        const string query = @"
+                            SELECT p.codigo_barras, p.nombre, p.categoria, p.precio_venta, p.stock_actual,
+                                   COALESCE(pi.imagen_url, p.imagen_url, '') AS imagen_url
+                            FROM productos p
+                            LEFT JOIN producto_imagenes pi ON pi.producto_id = p.id
+                            ORDER BY p.nombre ASC
+                            LIMIT 1000;";
+
+                        using (NpgsqlCommand cmd = new NpgsqlCommand(query, conexion))
+                        using (NpgsqlDataReader reader = await cmd.ExecuteReaderAsync())
+                        {
+                            cacheProductosInicio.Clear();
+                            while (reader.Read())
+                            {
+                                cacheProductosInicio.Add(new ProductoInicio
+                                {
+                                    CodigoBarras = reader["codigo_barras"].ToString() ?? string.Empty,
+                                    Nombre = reader["nombre"].ToString() ?? string.Empty,
+                                    Categoria = reader["categoria"].ToString() ?? "General",
+                                    PrecioVenta = Convert.ToDecimal(reader["precio_venta"]),
+                                    StockActual = Convert.ToDecimal(reader["stock_actual"]),
+                                    ImagenUrl = reader["imagen_url"].ToString() ?? string.Empty
+                                });
+                            }
+                        }
+
+                        ultimaCargaProductosInicio = DateTime.Now;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    LimpiarVistaPreviaProductoInicio("No se pudieron cargar productos.", ex.Message);
+                    return;
+                }
+            }
+
             productosInicio.Clear();
             productosInicioFiltrados.Clear();
 
-            try
+            foreach (var producto in cacheProductosInicio)
             {
-                DatabaseConnection db = new DatabaseConnection();
-                using (NpgsqlConnection conexion = db.GetConnection())
-                {
-                    conexion.Open();
-                    ProductImageRepository.AsegurarTabla(conexion);
-
-                    const string query = @"
-                        SELECT p.codigo_barras, p.nombre, p.categoria, p.precio_venta, p.stock_actual,
-                               COALESCE(pi.imagen_url, p.imagen_url, '') AS imagen_url
-                        FROM productos p
-                        LEFT JOIN producto_imagenes pi ON pi.producto_id = p.id
-                        ORDER BY p.nombre ASC;";
-
-                    using (NpgsqlCommand cmd = new NpgsqlCommand(query, conexion))
-                    using (NpgsqlDataReader reader = cmd.ExecuteReader())
-                    {
-                        while (reader.Read())
-                        {
-                            productosInicio.Add(new ProductoInicio
-                            {
-                                CodigoBarras = reader["codigo_barras"].ToString() ?? string.Empty,
-                                Nombre = reader["nombre"].ToString() ?? string.Empty,
-                                Categoria = reader["categoria"].ToString() ?? "General",
-                                PrecioVenta = Convert.ToDecimal(reader["precio_venta"]),
-                                StockActual = Convert.ToDecimal(reader["stock_actual"]),
-                                ImagenUrl = reader["imagen_url"].ToString() ?? string.Empty
-                            });
-                        }
-                    }
-                }
-
-                FiltrarProductosInicio();
-                if (productosInicioFiltrados.Count > 0)
-                {
-                    dgProductosInicio.SelectedIndex = 0;
-                }
-                else
-                {
-                    LimpiarVistaPreviaProductoInicio("No hay productos registrados.", "Agrega productos desde Inventario.");
-                }
+                productosInicio.Add(producto);
             }
-            catch (Exception ex)
+
+            FiltrarProductosInicio();
+            if (productosInicioFiltrados.Count > 0)
             {
-                LimpiarVistaPreviaProductoInicio("No se pudieron cargar productos.", ex.Message);
+                dgProductosInicio.SelectedIndex = 0;
+            }
+            else
+            {
+                LimpiarVistaPreviaProductoInicio("No hay productos registrados.", "Agrega productos desde Inventario.");
             }
         }
 
@@ -652,7 +668,6 @@ namespace RefaccionariaPOS.Views
                 using (NpgsqlConnection conexion = db.GetConnection())
                 {
                     conexion.Open();
-                    AsegurarTablasPermisos(conexion);
 
                     const string query = @"
                         SELECT p.clave
@@ -678,28 +693,6 @@ namespace RefaccionariaPOS.Views
             catch
             {
                 permisosActuales.Clear();
-            }
-        }
-
-        private static void AsegurarTablasPermisos(NpgsqlConnection conexion)
-        {
-            const string query = @"
-                CREATE TABLE IF NOT EXISTS permisos (
-                    id integer GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
-                    clave varchar(80) NOT NULL UNIQUE,
-                    descripcion text NOT NULL DEFAULT ''
-                );
-
-                CREATE TABLE IF NOT EXISTS usuario_permisos (
-                    usuario_id integer NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
-                    permiso_id integer NOT NULL REFERENCES permisos(id) ON DELETE CASCADE,
-                    habilitado boolean NOT NULL DEFAULT true,
-                    PRIMARY KEY (usuario_id, permiso_id)
-                );";
-
-            using (NpgsqlCommand cmd = new NpgsqlCommand(query, conexion))
-            {
-                cmd.ExecuteNonQuery();
             }
         }
 

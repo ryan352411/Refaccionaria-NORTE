@@ -10,6 +10,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
 using System.Windows.Media;
+using System.Windows.Threading;
 
 namespace RefaccionariaPOS.Views
 {
@@ -28,7 +29,8 @@ namespace RefaccionariaPOS.Views
             WHERE (p.nombre ILIKE @busqueda OR p.codigo_barras ILIKE @busqueda OR p.descripcion ILIKE @busqueda)
               AND (@categoria = 'Todas' OR categoria = @categoria)
               AND (@soloBajoStock = false OR stock_actual <= stock_minimo)
-            ORDER BY p.nombre ASC;";
+            ORDER BY p.nombre ASC
+            LIMIT 300;";
 
         private const string QueryCategorias = @"
             SELECT DISTINCT categoria
@@ -36,12 +38,6 @@ namespace RefaccionariaPOS.Views
             WHERE categoria IS NOT NULL AND categoria <> ''
             ORDER BY categoria;";
 
-        private const string QueryVerificarColumnas = @"
-            SELECT COUNT(*)
-            FROM information_schema.columns
-            WHERE table_schema = 'public'
-              AND table_name = 'productos'
-              AND column_name IN ('stock_minimo', 'categoria', 'imagen_url', 'tipo_venta');";
 
         private readonly ObservableCollection<string> categorias = new();
         private static readonly Brush FilaDisponible = Brushes.White;
@@ -51,25 +47,32 @@ namespace RefaccionariaPOS.Views
         private static readonly Brush TextoInventario = new SolidColorBrush(Color.FromRgb(30, 41, 59));
         private readonly bool soloLectura;
         private bool filtrosListos;
+        private readonly DispatcherTimer temporizadorBusqueda;
 
         public InventarioView(bool soloLectura = false)
         {
             InitializeComponent();
             this.soloLectura = soloLectura;
 
-            VerificarColumnasInventario();
             ConfigurarModoLectura();
             cmbCategoria.ItemsSource = categorias;
             CargarCategorias();
             CargarProductos();
             filtrosListos = true;
+
+            temporizadorBusqueda = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(300) };
+            temporizadorBusqueda.Tick += (_, _) =>
+            {
+                temporizadorBusqueda.Stop();
+                CargarProductos(txtBuscar.Text.Trim());
+            };
         }
 
-        private void CargarProductos(string terminoBusqueda = "")
+        private async void CargarProductos(string terminoBusqueda = "")
         {
             try
             {
-                dgInventario.ItemsSource = ObtenerProductos(terminoBusqueda);
+                dgInventario.ItemsSource = await ObtenerProductosAsync(terminoBusqueda);
             }
             catch (Exception ex)
             {
@@ -77,15 +80,14 @@ namespace RefaccionariaPOS.Views
             }
         }
 
-        private List<Producto> ObtenerProductos(string terminoBusqueda)
+        private async Task<List<Producto>> ObtenerProductosAsync(string terminoBusqueda)
         {
             List<Producto> productos = new();
             DatabaseConnection db = new DatabaseConnection();
 
             using (NpgsqlConnection conexion = db.GetConnection())
             {
-                conexion.Open();
-                ProductImageRepository.AsegurarTabla(conexion);
+                await conexion.OpenAsync();
 
                 using (NpgsqlCommand cmd = new NpgsqlCommand(QueryProductos, conexion))
                 {
@@ -93,7 +95,7 @@ namespace RefaccionariaPOS.Views
                     cmd.Parameters.AddWithValue("@categoria", CategoriaSeleccionada());
                     cmd.Parameters.AddWithValue("@soloBajoStock", chkBajoStock.IsChecked == true);
 
-                    using (NpgsqlDataReader reader = cmd.ExecuteReader())
+                    using (NpgsqlDataReader reader = await cmd.ExecuteReaderAsync())
                     {
                         while (reader.Read())
                         {
@@ -144,7 +146,8 @@ namespace RefaccionariaPOS.Views
 
         private void TxtBuscar_TextChanged(object sender, TextChangedEventArgs e)
         {
-            CargarProductos(txtBuscar.Text.Trim());
+            temporizadorBusqueda?.Stop();
+            temporizadorBusqueda?.Start();
         }
 
         private void CmbCategoria_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -288,33 +291,6 @@ namespace RefaccionariaPOS.Views
             return resultado;
         }
 
-        private void VerificarColumnasInventario()
-        {
-            try
-            {
-                DatabaseConnection db = new DatabaseConnection();
-                using (NpgsqlConnection conexion = db.GetConnection())
-                {
-                    conexion.Open();
-                    AsegurarColumnasProducto(conexion);
-                    ProductImageRepository.AsegurarTabla(conexion);
-
-                    using (NpgsqlCommand cmd = new NpgsqlCommand(QueryVerificarColumnas, conexion))
-                    {
-                        int columnas = Convert.ToInt32(cmd.ExecuteScalar());
-                        if (columnas < 4)
-                        {
-                            AsegurarColumnasProducto(conexion);
-                        }
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show("No se pudo verificar la estructura de inventario: " + ex.Message, "Inventario", MessageBoxButton.OK, MessageBoxImage.Warning);
-            }
-        }
-
         private void ConfigurarModoLectura()
         {
             if (!soloLectura)
@@ -381,22 +357,6 @@ namespace RefaccionariaPOS.Views
             return ventana;
         }
 
-        private static void AsegurarColumnasProducto(NpgsqlConnection conexion)
-        {
-            const string query = @"
-                ALTER TABLE productos
-                    ADD COLUMN IF NOT EXISTS imagen_url text NOT NULL DEFAULT '',
-                    ADD COLUMN IF NOT EXISTS tipo_venta varchar(20) NOT NULL DEFAULT 'Unidad';
-
-                ALTER TABLE productos
-                    ALTER COLUMN stock_actual TYPE numeric(12, 3) USING stock_actual::numeric,
-                    ALTER COLUMN stock_minimo TYPE numeric(12, 3) USING stock_minimo::numeric;";
-
-            using (NpgsqlCommand cmd = new NpgsqlCommand(query, conexion))
-            {
-                cmd.ExecuteNonQuery();
-            }
-        }
     }
 
     public class ImagenProductoConverter : IValueConverter
