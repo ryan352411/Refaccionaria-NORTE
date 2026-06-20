@@ -630,6 +630,19 @@ namespace RefaccionariaPOS.Views
                                 continue;
                             }
 
+                            // Obtener stock anterior antes de restar
+                            decimal stockAntes = 0;
+                            const string queryStockAntes = "SELECT stock_actual FROM productos WHERE codigo_barras = @codigo;";
+                            using (NpgsqlCommand cmdStockAntes = new NpgsqlCommand(queryStockAntes, conexion, transaccion))
+                            {
+                                cmdStockAntes.Parameters.AddWithValue("@codigo", item.CodigoBarras);
+                                object? stockObj = cmdStockAntes.ExecuteScalar();
+                                if (stockObj != null)
+                                {
+                                    stockAntes = Convert.ToDecimal(stockObj);
+                                }
+                            }
+
                             string queryStock = @"
                         UPDATE productos
                         SET stock_actual = stock_actual - @cantidad
@@ -645,6 +658,15 @@ namespace RefaccionariaPOS.Views
                                 {
                                     throw new Exception("Stock insuficiente para el producto: " + item.Nombre);
                                 }
+                            }
+
+                            // Registrar auditoría de la venta
+                            if (productoId.HasValue)
+                            {
+                                decimal stockDespues = stockAntes - item.Cantidad;
+                                var auditService = new AuditService(usuarioId);
+                                auditService.RegistrarStockHistorial(conexion, transaccion, productoId.Value, "Venta",
+                                    item.Cantidad, stockAntes, stockDespues, $"Venta Folio #{folioGeneradoBaseDatos}");
                             }
                         }
 

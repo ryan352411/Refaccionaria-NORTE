@@ -144,13 +144,32 @@ namespace RefaccionariaPOS.Views
             {
                 conexion.Open();
 
-                using (NpgsqlCommand cmd = new NpgsqlCommand(QueryInsertarProducto, conexion))
+                using (NpgsqlTransaction transaccion = conexion.BeginTransaction())
                 {
-                    string imagenLocal = PrepararImagenLocal();
-                    AgregarParametrosProducto(cmd, costo, precioVenta, stockMinimo);
-                    cmd.Parameters.AddWithValue("@stock", stock);
-                    int productoId = Convert.ToInt32(cmd.ExecuteScalar());
-                    ProductImageRepository.GuardarImagen(conexion, productoId, imagenLocal);
+                    try
+                    {
+                        int productoId = 0;
+                        using (NpgsqlCommand cmd = new NpgsqlCommand(QueryInsertarProducto, conexion, transaccion))
+                        {
+                            string imagenLocal = PrepararImagenLocal();
+                            AgregarParametrosProducto(cmd, costo, precioVenta, stockMinimo);
+                            cmd.Parameters.AddWithValue("@stock", stock);
+                            productoId = Convert.ToInt32(cmd.ExecuteScalar());
+                            ProductImageRepository.GuardarImagen(conexion, productoId, imagenLocal);
+                        }
+
+                        // Registrar en auditoría
+                        var auditService = new AuditService(ObtenerUsuarioIdDelSistema());
+                        auditService.Registrar(conexion, transaccion, "productos", AuditService.TipoOperacion.INSERT,
+                            productoId, $"Nuevo producto: {txtNombre.Text} (Stock: {stock})");
+
+                        transaccion.Commit();
+                    }
+                    catch
+                    {
+                        transaccion.Rollback();
+                        throw;
+                    }
                 }
             }
         }
@@ -162,14 +181,62 @@ namespace RefaccionariaPOS.Views
             {
                 conexion.Open();
 
-                using (NpgsqlCommand cmd = new NpgsqlCommand(QueryActualizarProducto, conexion))
+                using (NpgsqlTransaction transaccion = conexion.BeginTransaction())
                 {
-                    string imagenLocal = PrepararImagenLocal();
-                    AgregarParametrosProducto(cmd, costo, precioVenta, stockMinimo);
-                    cmd.Parameters.AddWithValue("@stockAgregar", stockAgregar);
-                    cmd.Parameters.AddWithValue("@id", idProducto);
-                    cmd.ExecuteNonQuery();
-                    ProductImageRepository.GuardarImagen(conexion, idProducto, imagenLocal);
+                    try
+                    {
+                        // Obtener valores anteriores para auditoría
+                        ObtenerValoresAnteriores(conexion, transaccion, idProducto, out decimal costoPrevio,
+                            out decimal precioPrevio, out decimal stockMinimoPrevio, out decimal stockActualPrevio, out string categoriaPreviea);
+
+                        using (NpgsqlCommand cmd = new NpgsqlCommand(QueryActualizarProducto, conexion, transaccion))
+                        {
+                            string imagenLocal = PrepararImagenLocal();
+                            AgregarParametrosProducto(cmd, costo, precioVenta, stockMinimo);
+                            cmd.Parameters.AddWithValue("@stockAgregar", stockAgregar);
+                            cmd.Parameters.AddWithValue("@id", idProducto);
+                            cmd.ExecuteNonQuery();
+                            ProductImageRepository.GuardarImagen(conexion, idProducto, imagenLocal);
+                        }
+
+                        // Registrar auditoría de cambios
+                        var auditService = new AuditService(ObtenerUsuarioIdDelSistema());
+
+                        if (costo != costoPrevio)
+                        {
+                            auditService.Registrar(conexion, transaccion, "productos", AuditService.TipoOperacion.UPDATE,
+                                idProducto, $"Actualización de {AuditService.Cambios.COSTO_PROVEEDOR}",
+                                AuditService.Cambios.COSTO_PROVEEDOR, costoPrevio.ToString(), costo.ToString());
+                        }
+
+                        if (precioVenta != precioPrevio)
+                        {
+                            auditService.Registrar(conexion, transaccion, "productos", AuditService.TipoOperacion.UPDATE,
+                                idProducto, $"Actualización de {AuditService.Cambios.PRECIO_VENTA}",
+                                AuditService.Cambios.PRECIO_VENTA, precioPrevio.ToString(), precioVenta.ToString());
+                        }
+
+                        if (stockMinimo != stockMinimoPrevio)
+                        {
+                            auditService.Registrar(conexion, transaccion, "productos", AuditService.TipoOperacion.UPDATE,
+                                idProducto, $"Actualización de {AuditService.Cambios.STOCK_MINIMO}",
+                                AuditService.Cambios.STOCK_MINIMO, stockMinimoPrevio.ToString(), stockMinimo.ToString());
+                        }
+
+                        if (stockAgregar > 0)
+                        {
+                            decimal stockNuevo = stockActualPrevio + stockAgregar;
+                            auditService.RegistrarStockHistorial(conexion, transaccion, idProducto, "Agregación",
+                                stockAgregar, stockActualPrevio, stockNuevo, "Compra/Reposición de stock");
+                        }
+
+                        transaccion.Commit();
+                    }
+                    catch
+                    {
+                        transaccion.Rollback();
+                        throw;
+                    }
                 }
             }
         }
@@ -301,6 +368,46 @@ namespace RefaccionariaPOS.Views
             lblModo.Foreground = System.Windows.Media.Brushes.DarkSlateGray;
             lblStockCaption.Text = "Stock Inicial:";
             btnGuardar.Content = "Guardar";
+        }
+
+        private void ObtenerValoresAnteriores(NpgsqlConnection conexion, NpgsqlTransaction transaccion,
+            int idProducto, out decimal costo, out decimal precio, out decimal stockMinimo,
+            out decimal stockActual, out string categoria)
+        {
+            costo = 0;
+            precio = 0;
+            stockMinimo = 0;
+            stockActual = 0;
+            categoria = "General";
+
+            const string query = @"
+                SELECT costo_proveedor, precio_venta, stock_minimo, stock_actual, categoria
+                FROM productos
+                WHERE id = @id;";
+
+            using (NpgsqlCommand cmd = new NpgsqlCommand(query, conexion, transaccion))
+            {
+                cmd.Parameters.AddWithValue("@id", idProducto);
+
+                using (NpgsqlDataReader reader = cmd.ExecuteReader())
+                {
+                    if (reader.Read())
+                    {
+                        costo = Convert.ToDecimal(reader["costo_proveedor"]);
+                        precio = Convert.ToDecimal(reader["precio_venta"]);
+                        stockMinimo = Convert.ToDecimal(reader["stock_minimo"]);
+                        stockActual = Convert.ToDecimal(reader["stock_actual"]);
+                        categoria = reader["categoria"].ToString() ?? "General";
+                    }
+                }
+            }
+        }
+
+        private int ObtenerUsuarioIdDelSistema()
+        {
+            // Obtener del contexto de la aplicación (puede venir de LoginView)
+            // Por ahora, retorna 0 (sin usuario) - se debe pasar desde MainView
+            return 0;
         }
 
         private void CargarCategorias()

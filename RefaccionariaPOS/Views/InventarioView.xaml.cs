@@ -234,11 +234,57 @@ namespace RefaccionariaPOS.Views
                 {
                     conexion.Open();
 
-                    using (NpgsqlCommand cmd = new NpgsqlCommand("UPDATE productos SET stock_actual = @stock WHERE codigo_barras = @codigo;", conexion))
+                    using (NpgsqlTransaction transaccion = conexion.BeginTransaction())
                     {
-                        cmd.Parameters.AddWithValue("@stock", nuevoStock);
-                        cmd.Parameters.AddWithValue("@codigo", codigo);
-                        cmd.ExecuteNonQuery();
+                        try
+                        {
+                            // Obtener stock anterior y ID del producto
+                            int productoId = 0;
+                            decimal stockAnterior = 0;
+
+                            const string queryObtener = "SELECT id, stock_actual FROM productos WHERE codigo_barras = @codigo;";
+                            using (NpgsqlCommand cmdObtener = new NpgsqlCommand(queryObtener, conexion, transaccion))
+                            {
+                                cmdObtener.Parameters.AddWithValue("@codigo", codigo);
+                                using (NpgsqlDataReader reader = cmdObtener.ExecuteReader())
+                                {
+                                    if (reader.Read())
+                                    {
+                                        productoId = Convert.ToInt32(reader["id"]);
+                                        stockAnterior = Convert.ToDecimal(reader["stock_actual"]);
+                                    }
+                                }
+                            }
+
+                            // Actualizar stock
+                            using (NpgsqlCommand cmd = new NpgsqlCommand("UPDATE productos SET stock_actual = @stock WHERE codigo_barras = @codigo;", conexion, transaccion))
+                            {
+                                cmd.Parameters.AddWithValue("@stock", nuevoStock);
+                                cmd.Parameters.AddWithValue("@codigo", codigo);
+                                cmd.ExecuteNonQuery();
+                            }
+
+                            // Registrar en historial
+                            if (productoId > 0)
+                            {
+                                decimal diferencia = nuevoStock - stockAnterior;
+                                var auditService = new AuditService(ObtenerUsuarioIdDelSistema());
+                                auditService.RegistrarStockHistorial(conexion, transaccion, productoId, "Ajuste Manual",
+                                    Math.Abs(diferencia), stockAnterior, nuevoStock, "Actualización manual del inventario");
+
+                                // Registrar en auditoría general
+                                auditService.Registrar(conexion, transaccion, "productos", AuditService.TipoOperacion.UPDATE,
+                                    productoId, $"Ajuste manual de stock: {stockAnterior} → {nuevoStock}",
+                                    "stock_actual", stockAnterior.ToString(), nuevoStock.ToString());
+                            }
+
+                            transaccion.Commit();
+                        }
+                        catch
+                        {
+                            transaccion.Rollback();
+                            throw;
+                        }
                     }
                 }
             }
@@ -320,6 +366,13 @@ namespace RefaccionariaPOS.Views
             return ventana.ShowDialog() == true
                 ? ((TextBox)((StackPanel)ventana.Content).Children[1]).Text
                 : null;
+        }
+
+        private int ObtenerUsuarioIdDelSistema()
+        {
+            // Obtener del contexto de la aplicación
+            // Por ahora, retorna 0 (sin usuario) - se debe pasar desde MainView
+            return 0;
         }
 
         private static Window CrearVentanaEntrada(string titulo, string mensaje, string valorActual)
