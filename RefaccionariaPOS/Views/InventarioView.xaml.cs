@@ -265,19 +265,6 @@ namespace RefaccionariaPOS.Views
                             }
 
                             // Registrar en historial
-                            if (productoId > 0)
-                            {
-                                decimal diferencia = nuevoStock - stockAnterior;
-                                var auditService = new AuditService(ObtenerUsuarioIdDelSistema());
-                                auditService.RegistrarStockHistorial(conexion, transaccion, productoId, "Ajuste Manual",
-                                    Math.Abs(diferencia), stockAnterior, nuevoStock, "Actualización manual del inventario");
-
-                                // Registrar en auditoría general
-                                auditService.Registrar(conexion, transaccion, "productos", AuditService.TipoOperacion.UPDATE,
-                                    productoId, $"Ajuste manual de stock: {stockAnterior} → {nuevoStock}",
-                                    "stock_actual", stockAnterior.ToString(), nuevoStock.ToString());
-                            }
-
                             transaccion.Commit();
                         }
                         catch
@@ -366,13 +353,6 @@ namespace RefaccionariaPOS.Views
             return ventana.ShowDialog() == true
                 ? ((TextBox)((StackPanel)ventana.Content).Children[1]).Text
                 : null;
-        }
-
-        private int ObtenerUsuarioIdDelSistema()
-        {
-            // Obtener del contexto de la aplicación
-            // Por ahora, retorna 0 (sin usuario) - se debe pasar desde MainView
-            return 0;
         }
 
         private static Window CrearVentanaEntrada(string titulo, string mensaje, string valorActual)

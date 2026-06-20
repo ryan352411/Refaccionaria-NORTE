@@ -158,11 +158,6 @@ namespace RefaccionariaPOS.Views
                             ProductImageRepository.GuardarImagen(conexion, productoId, imagenLocal);
                         }
 
-                        // Registrar en auditoría
-                        var auditService = new AuditService(ObtenerUsuarioIdDelSistema());
-                        auditService.Registrar(conexion, transaccion, "productos", AuditService.TipoOperacion.INSERT,
-                            productoId, $"Nuevo producto: {txtNombre.Text} (Stock: {stock})");
-
                         transaccion.Commit();
                     }
                     catch
@@ -197,37 +192,6 @@ namespace RefaccionariaPOS.Views
                             cmd.Parameters.AddWithValue("@id", idProducto);
                             cmd.ExecuteNonQuery();
                             ProductImageRepository.GuardarImagen(conexion, idProducto, imagenLocal);
-                        }
-
-                        // Registrar auditoría de cambios
-                        var auditService = new AuditService(ObtenerUsuarioIdDelSistema());
-
-                        if (costo != costoPrevio)
-                        {
-                            auditService.Registrar(conexion, transaccion, "productos", AuditService.TipoOperacion.UPDATE,
-                                idProducto, $"Actualización de {AuditService.Cambios.COSTO_PROVEEDOR}",
-                                AuditService.Cambios.COSTO_PROVEEDOR, costoPrevio.ToString(), costo.ToString());
-                        }
-
-                        if (precioVenta != precioPrevio)
-                        {
-                            auditService.Registrar(conexion, transaccion, "productos", AuditService.TipoOperacion.UPDATE,
-                                idProducto, $"Actualización de {AuditService.Cambios.PRECIO_VENTA}",
-                                AuditService.Cambios.PRECIO_VENTA, precioPrevio.ToString(), precioVenta.ToString());
-                        }
-
-                        if (stockMinimo != stockMinimoPrevio)
-                        {
-                            auditService.Registrar(conexion, transaccion, "productos", AuditService.TipoOperacion.UPDATE,
-                                idProducto, $"Actualización de {AuditService.Cambios.STOCK_MINIMO}",
-                                AuditService.Cambios.STOCK_MINIMO, stockMinimoPrevio.ToString(), stockMinimo.ToString());
-                        }
-
-                        if (stockAgregar > 0)
-                        {
-                            decimal stockNuevo = stockActualPrevio + stockAgregar;
-                            auditService.RegistrarStockHistorial(conexion, transaccion, idProducto, "Agregación",
-                                stockAgregar, stockActualPrevio, stockNuevo, "Compra/Reposición de stock");
                         }
 
                         transaccion.Commit();
@@ -401,13 +365,6 @@ namespace RefaccionariaPOS.Views
                     }
                 }
             }
-        }
-
-        private int ObtenerUsuarioIdDelSistema()
-        {
-            // Obtener del contexto de la aplicación (puede venir de LoginView)
-            // Por ahora, retorna 0 (sin usuario) - se debe pasar desde MainView
-            return 0;
         }
 
         private void CargarCategorias()
