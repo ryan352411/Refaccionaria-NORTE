@@ -10,6 +10,12 @@ RUN dotnet publish CatalogoWeb/CatalogoWeb.csproj -c Release -o /app/publish /p:
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final
 WORKDIR /app
 
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libgssapi3 \
+    libgssapi-krb5-2 \
+    libkrb5-3 \
+    && rm -rf /var/lib/apt/lists/*
+
 USER $APP_UID
 
 ENV ASPNETCORE_ENVIRONMENT=Production
