@@ -19,18 +19,18 @@ namespace RefaccionariaPOS.Views
         private const string CategoriaTodas = "Todas";
         private const string CategoriaGeneral = "General";
 
+        // Optimizado: Elimina LEFT JOIN de imagen_url y carga solo lo necesario
         private const string QueryProductos = @"
             SELECT p.id, p.codigo_barras, p.nombre, p.descripcion, p.costo_proveedor, p.precio_venta,
                    p.stock_actual, p.stock_minimo, p.categoria,
-                   COALESCE(pi.imagen_url, p.imagen_url, '') AS imagen_url,
+                   COALESCE(p.imagen_url, '') AS imagen_url,
                    COALESCE(p.tipo_venta, 'Unidad') AS tipo_venta
             FROM productos p
-            LEFT JOIN producto_imagenes pi ON pi.producto_id = p.id
-            WHERE (p.nombre ILIKE @busqueda OR p.codigo_barras ILIKE @busqueda OR p.descripcion ILIKE @busqueda)
+            WHERE (p.codigo_barras = @busqueda OR p.nombre ILIKE @busquedaLike)
               AND (@categoria = 'Todas' OR categoria = @categoria)
               AND (@soloBajoStock = false OR stock_actual <= stock_minimo)
             ORDER BY p.nombre ASC
-            LIMIT 300;";
+            LIMIT 200;";
 
         private const string QueryCategorias = @"
             SELECT DISTINCT categoria
@@ -91,9 +91,14 @@ namespace RefaccionariaPOS.Views
 
                 using (NpgsqlCommand cmd = new NpgsqlCommand(QueryProductos, conexion))
                 {
-                    cmd.Parameters.AddWithValue("@busqueda", "%" + terminoBusqueda + "%");
+                    // Búsqueda optimizada: código exacto O nombre similar
+                    cmd.Parameters.AddWithValue("@busqueda", terminoBusqueda);
+                    cmd.Parameters.AddWithValue("@busquedaLike", "%" + terminoBusqueda + "%");
                     cmd.Parameters.AddWithValue("@categoria", CategoriaSeleccionada());
                     cmd.Parameters.AddWithValue("@soloBajoStock", chkBajoStock.IsChecked == true);
+
+                    // Timeout más corto para queries lentas
+                    cmd.CommandTimeout = 15;
 
                     using (NpgsqlDataReader reader = await cmd.ExecuteReaderAsync())
                     {

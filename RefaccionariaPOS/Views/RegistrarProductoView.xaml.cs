@@ -433,7 +433,15 @@ namespace RefaccionariaPOS.Views
 
         private string ObtenerTipoVenta()
         {
-            return (cmbTipoVenta.SelectedItem as ComboBoxItem)?.Content.ToString() ?? "Unidad";
+            string tipoBase = (cmbTipoVenta.SelectedItem as ComboBoxItem)?.Content.ToString() ?? "Unidad";
+
+            // Si es Granel, agregar la medida seleccionada
+            if (tipoBase == "Granel" && cmbMedidaGranel.SelectedItem is ComboBoxItem medida)
+            {
+                return $"Granel - {medida.Content}";
+            }
+
+            return tipoBase;
         }
 
         private void SeleccionarTipoVenta(string tipoVenta)
@@ -449,6 +457,40 @@ namespace RefaccionariaPOS.Views
             }
 
             cmbTipoVenta.SelectedIndex = 0;
+        }
+
+        private void CmbTipoVenta_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (cmbTipoVenta.SelectedItem is not ComboBoxItem item)
+            {
+                return;
+            }
+
+            string tipoSeleccionado = item.Content.ToString() ?? "";
+
+            if (tipoSeleccionado == "Granel")
+            {
+                // Mostrar opciones de granel
+                panelGranel.Visibility = Visibility.Visible;
+                cmbMedidaGranel.SelectedIndex = 0; // Litro por defecto
+                txtPrecioGranel.Text = txtPrecioVenta.Text;
+            }
+            else
+            {
+                // Ocultar opciones de granel
+                panelGranel.Visibility = Visibility.Collapsed;
+                txtPrecioVenta.Text = txtPrecioGranel.Text;
+            }
+        }
+
+        private void CmbMedidaGranel_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            // La etiqueta de precio se actualiza automáticamente según la medida seleccionada
+            if (cmbMedidaGranel.SelectedItem is ComboBoxItem medida)
+            {
+                // Puedes agregar lógica aquí si necesitas cambiar el precio base según la medida
+                // Por ejemplo: precio por litro vs precio por metro
+            }
         }
 
     }
