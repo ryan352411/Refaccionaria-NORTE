@@ -187,7 +187,48 @@ function renderProducts(productos) {
 function createProductCard(producto) {
   const card = document.createElement("article");
   card.className = "product-card";
+  card.tabIndex = 0;
+  card.setAttribute("role", "button");
+  card.setAttribute("aria-label", `Ver detalles de ${producto.nombre}`);
 
+  const media = buildMediaGallery(producto);
+
+  const body = document.createElement("div");
+  body.className = "product-body";
+
+  const meta = document.createElement("div");
+  meta.className = "product-meta";
+  meta.append(textElement("span", producto.categoria));
+
+  const title = textElement("h3", producto.nombre, "product-title");
+  const desc = textElement("p", producto.descripcion || "Producto de mostrador.", "product-desc");
+
+  const footer = document.createElement("div");
+  footer.className = "product-footer";
+  footer.append(textElement("strong", money(producto.precioVenta), "price"));
+  footer.append(textElement("span", `${quantity(producto.stockActual)} ${unitLabel(producto.tipoVenta)}`, "stock"));
+
+  body.append(meta, title, desc, footer);
+  card.append(media, body);
+
+  card.addEventListener("click", (event) => {
+    if (event.target.closest(".image-nav")) {
+      return;
+    }
+    openProductModal(producto);
+  });
+
+  card.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      openProductModal(producto);
+    }
+  });
+
+  return card;
+}
+
+function buildMediaGallery(producto) {
   const media = document.createElement("div");
   media.className = "product-media";
   const imagenes = Array.isArray(producto.imagenes) && producto.imagenes.length > 0
@@ -240,24 +281,7 @@ function createProductCard(producto) {
   availability.textContent = producto.estado;
   media.append(availability);
 
-  const body = document.createElement("div");
-  body.className = "product-body";
-
-  const meta = document.createElement("div");
-  meta.className = "product-meta";
-  meta.append(textElement("span", producto.categoria));
-
-  const title = textElement("h3", producto.nombre, "product-title");
-  const desc = textElement("p", producto.descripcion || "Producto de mostrador.", "product-desc");
-
-  const footer = document.createElement("div");
-  footer.className = "product-footer";
-  footer.append(textElement("strong", money(producto.precioVenta), "price"));
-  footer.append(textElement("span", `${quantity(producto.stockActual)} ${unitLabel(producto.tipoVenta)}`, "stock"));
-
-  body.append(meta, title, desc, footer);
-  card.append(media, body);
-  return card;
+  return media;
 }
 
 function renderProductImage(image, imagenes, index) {
@@ -324,6 +348,56 @@ function textElement(tagName, value, className = "") {
   element.textContent = value;
   return element;
 }
+
+const modalElements = {
+  overlay: document.querySelector("#productModal"),
+  close: document.querySelector("#modalClose"),
+  media: document.querySelector("#modalMedia"),
+  category: document.querySelector("#modalCategory"),
+  title: document.querySelector("#modalTitle"),
+  desc: document.querySelector("#modalDesc"),
+  price: document.querySelector("#modalPrice"),
+  stock: document.querySelector("#modalStock"),
+  unit: document.querySelector("#modalUnit"),
+};
+
+function openProductModal(producto) {
+  modalElements.category.textContent = producto.categoria || "General";
+  modalElements.title.textContent = producto.nombre;
+  modalElements.desc.textContent = producto.descripcion || "Producto de mostrador.";
+
+  const esGranel = producto.tipoVenta && producto.tipoVenta !== "Unidad";
+  modalElements.price.textContent = esGranel
+    ? `${money(producto.precioVenta)} por ${producto.tipoVenta.toLowerCase()}`
+    : money(producto.precioVenta);
+  modalElements.stock.textContent = `${quantity(producto.stockActual)} ${unitLabel(producto.tipoVenta)}`;
+  modalElements.unit.textContent = producto.tipoVenta || "Unidad";
+
+  modalElements.media.innerHTML = "";
+  modalElements.media.append(buildMediaGallery(producto));
+
+  modalElements.overlay.hidden = false;
+  document.body.classList.add("modal-open");
+  modalElements.close.focus();
+}
+
+function closeProductModal() {
+  modalElements.overlay.hidden = true;
+  modalElements.media.innerHTML = "";
+  document.body.classList.remove("modal-open");
+}
+
+modalElements.close.addEventListener("click", closeProductModal);
+modalElements.overlay.addEventListener("click", (event) => {
+  if (event.target === modalElements.overlay) {
+    closeProductModal();
+  }
+});
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && !modalElements.overlay.hidden) {
+    closeProductModal();
+  }
+});
 
 function renderResultMeta(total, pagina, totalPaginas) {
   const selectedCategory = elements.categorySelect.value;

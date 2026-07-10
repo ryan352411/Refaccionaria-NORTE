@@ -1,5 +1,5 @@
-const cacheName = "catalogo-refaccionaria-v3";
-const shellFiles = ["/", "/index.html", "/styles.css?v=3", "/app.js?v=3", "/manifest.json", "/icon.svg"];
+const cacheName = "catalogo-refaccionaria-v4";
+const shellFiles = ["/", "/index.html", "/styles.css?v=4", "/app.js?v=4", "/manifest.json", "/icon.svg"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(cacheName).then((cache) => cache.addAll(shellFiles)));

@@ -485,6 +485,133 @@ select:focus {
   font-weight: 850;
 }
 
+.product-card {
+  cursor: pointer;
+  transition: transform 140ms ease, box-shadow 140ms ease;
+}
+
+.product-card:hover,
+.product-card:focus-visible {
+  transform: translateY(-3px);
+  box-shadow: 0 14px 28px rgba(23, 32, 27, 0.13);
+  outline: 0;
+}
+
+body.modal-open {
+  overflow: hidden;
+}
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgba(15, 23, 27, 0.58);
+  backdrop-filter: blur(2px);
+}
+
+.modal {
+  position: relative;
+  width: min(640px, 100%);
+  max-height: min(92vh, 760px);
+  overflow-y: auto;
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow: 0 24px 60px rgba(10, 16, 12, 0.35);
+}
+
+.modal-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 3;
+  display: grid;
+  width: 38px;
+  height: 38px;
+  place-items: center;
+  border: 1px solid rgba(226, 232, 240, 0.86);
+  border-radius: 50%;
+  color: #102033;
+  background: rgba(255, 255, 255, 0.92);
+  font-size: 1rem;
+  font-weight: 950;
+  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.16);
+}
+
+.modal-media .product-media {
+  height: clamp(240px, 42vh, 340px);
+}
+
+.modal-body {
+  display: grid;
+  gap: 12px;
+  padding: 18px 20px 22px;
+}
+
+.modal-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.modal-chip {
+  border-radius: 999px;
+  padding: 7px 11px;
+  color: var(--blue);
+  background: rgba(34, 87, 122, 0.1);
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
+.modal-title {
+  margin: 0;
+  font-size: clamp(1.25rem, 4vw, 1.6rem);
+  line-height: 1.2;
+}
+
+.modal-desc {
+  color: var(--muted);
+  font-size: 0.95rem;
+  line-height: 1.5;
+  white-space: pre-line;
+}
+
+.modal-facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+  margin-top: 4px;
+  border-top: 1px solid var(--line);
+  padding-top: 14px;
+}
+
+.modal-facts > div {
+  display: grid;
+  gap: 4px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px;
+  background: rgba(246, 247, 244, 0.7);
+}
+
+.modal-facts span {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.modal-facts strong {
+  font-size: 1.05rem;
+  font-weight: 950;
+}
+
+.modal-facts strong#modalPrice {
+  color: var(--green);
+}
+
 .toast {
   position: fixed;
   right: 14px;

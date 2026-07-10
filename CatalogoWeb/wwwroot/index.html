@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#0f5132">
   <title>Catalogo Refaccionaria Norte</title>
   <link rel="manifest" href="/manifest.json">
-  <link rel="stylesheet" href="/styles.css?v=3">
+  <link rel="stylesheet" href="/styles.css?v=4">
 </head>
 <body>
   <div class="app-shell">
@@ -73,7 +73,35 @@
     </main>
   </div>
 
+  <div id="productModal" class="modal-overlay" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+      <button id="modalClose" class="modal-close" type="button" aria-label="Cerrar">&#10005;</button>
+      <div id="modalMedia" class="modal-media"></div>
+      <div class="modal-body">
+        <div class="modal-meta">
+          <span id="modalCategory" class="modal-chip"></span>
+        </div>
+        <h3 id="modalTitle" class="modal-title"></h3>
+        <p id="modalDesc" class="modal-desc"></p>
+        <div class="modal-facts">
+          <div>
+            <span>Precio</span>
+            <strong id="modalPrice"></strong>
+          </div>
+          <div>
+            <span>Existencia</span>
+            <strong id="modalStock"></strong>
+          </div>
+          <div>
+            <span>Se vende por</span>
+            <strong id="modalUnit"></strong>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
-  <script src="/app.js?v=3" defer></script>
+  <script src="/app.js?v=4" defer></script>
 </body>
 </html>
