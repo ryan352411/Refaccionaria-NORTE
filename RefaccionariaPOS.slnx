@@ -1,5 +1,4 @@
 <Solution>
   <Project Path="CatalogoWeb/CatalogoWeb.csproj" />
-  <Project Path="CorteCajaMovil/CorteCajaMovil.csproj" />
   <Project Path="RefaccionariaPOS/RefaccionariaPOS.csproj" />
 </Solution>
