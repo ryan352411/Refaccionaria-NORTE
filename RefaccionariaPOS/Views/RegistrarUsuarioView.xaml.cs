@@ -60,7 +60,6 @@ namespace RefaccionariaPOS.Views
 
                         if (filasAfectadas > 0)
                         {
-                            MessageBox.Show($"Usuario '{usuario}' registrado como {rolSeleccionado}.", "Éxito", MessageBoxButton.OK, MessageBoxImage.Information);
                             txtNuevoUsuario.Clear();
                             txtNuevaPassword.Clear();
                             cmbRol.SelectedIndex = 0;
@@ -124,8 +123,6 @@ namespace RefaccionariaPOS.Views
                         transaction.Commit();
                     }
                 }
-
-                MessageBox.Show("Permisos guardados.", "Permisos", MessageBoxButton.OK, MessageBoxImage.Information);
             }
             catch (Exception ex)
             {
@@ -182,7 +179,6 @@ namespace RefaccionariaPOS.Views
                     }
                 }
 
-                MessageBox.Show("Usuario eliminado correctamente.", "Listo", MessageBoxButton.OK, MessageBoxImage.Information);
                 CargarUsuarios();
             }
             catch (Exception ex)

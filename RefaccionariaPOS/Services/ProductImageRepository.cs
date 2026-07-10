@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using Npgsql;
 using NpgsqlTypes;
 
@@ -7,8 +8,18 @@ namespace RefaccionariaPOS.Services
 {
     public static class ProductImageRepository
     {
+        private static readonly object SyncRoot = new();
+        private static bool estructuraVerificada;
+
         public static void AsegurarTabla(NpgsqlConnection conexion)
         {
+            lock (SyncRoot)
+            {
+                if (estructuraVerificada)
+                {
+                    return;
+                }
+
             const string query = @"
                 ALTER TABLE productos
                     ADD COLUMN IF NOT EXISTS imagen_url text NOT NULL DEFAULT '',
@@ -70,6 +81,8 @@ namespace RefaccionariaPOS.Services
 
             using NpgsqlCommand cmd = new NpgsqlCommand(query, conexion);
             cmd.ExecuteNonQuery();
+                estructuraVerificada = true;
+            }
         }
 
         public static void GuardarImagen(NpgsqlConnection conexion, int productoId, string imagenUrl)

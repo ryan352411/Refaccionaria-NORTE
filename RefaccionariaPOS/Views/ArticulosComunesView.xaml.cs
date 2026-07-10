@@ -208,7 +208,9 @@ namespace RefaccionariaPOS.Views
                     ventaId,
                     chkImprimirTicket.IsChecked == true,
                     cmbImpresoras.SelectedItem?.ToString());
-                MessageBox.Show("Venta comun con Folio #" + folio + " procesada con exito.", "Venta completada", MessageBoxButton.OK, MessageBoxImage.Information);
+
+                // Aviso por WhatsApp a los numeros configurados (no bloquea ni afecta la venta si falla).
+                WhatsAppNotificationService.NotificarVentaEnSegundoPlano(ventaId);
 
                 articulos.Clear();
                 txtEfectivoRecibido.Clear();

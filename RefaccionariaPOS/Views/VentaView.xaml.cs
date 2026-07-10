@@ -26,6 +26,8 @@ namespace RefaccionariaPOS.Views
         private readonly int usuarioId;
         private readonly string codigoInicial;
         private CancellationTokenSource? busquedaCancellation;
+        private Task? cargaClientesTask;
+        private List<ClienteVentaOpcion> clientesVenta = new();
         private int busquedaVersion;
         private bool activada;
 
@@ -36,9 +38,6 @@ namespace RefaccionariaPOS.Views
             this.codigoInicial = codigoInicial;
             dgCarrito.ItemsSource = listaCarrito;
             PreviewKeyDown += VentaView_PreviewKeyDown;
-            AsegurarColumnasPuntoVenta();
-            CargarClientesFrecuentes();
-            CargarImpresoras();
             Loaded += VentaView_Loaded;
         }
 
@@ -48,12 +47,19 @@ namespace RefaccionariaPOS.Views
 
         private async void VentaView_Loaded(object sender, RoutedEventArgs e)
         {
+            await AsegurarClientesFrecuentesAsync();
             await ActivarAsync();
         }
 
         public async void ActivarDesdePanel()
         {
+            await AsegurarClientesFrecuentesAsync();
             await ActivarAsync();
+        }
+
+        private Task AsegurarClientesFrecuentesAsync()
+        {
+            return cargaClientesTask ??= CargarClientesFrecuentesAsync();
         }
 
         private async Task ActivarAsync()
@@ -187,6 +193,11 @@ namespace RefaccionariaPOS.Views
 
                 // Limpiamos la selección para que pueda volver a elegir el mismo después si quiere
                 dgResultadosBusqueda.SelectedItem = null;
+
+                if (EsVentaAGranel(seleccionado))
+                {
+                    AbrirCalculadoraGranel(seleccionado);
+                }
             }
         }
         private async void TxtBuscarId_KeyDown(object sender, KeyEventArgs e)
@@ -206,18 +217,30 @@ namespace RefaccionariaPOS.Views
         // ==========================================================
         private void MostrarVistaPrevia(Producto p)
         {
+            bool esGranel = EsVentaAGranel(p);
+            string unidad = ObtenerUnidadVenta(p).ToLowerInvariant();
             lblPreviewCodigo.Text = p.CodigoBarras;
             lblPreviewNombre.Text = p.Nombre;
-            lblPreviewPrecio.Text = string.Format("{0:C}", p.PrecioVenta);
-            lblPreviewStock.Text = FormatearCantidad(p.Stock);
+            lblPreviewPrecio.Text = esGranel
+                ? $"{p.PrecioVenta:C} por {unidad}"
+                : string.Format("{0:C}", p.PrecioVenta);
+            lblPreviewStock.Text = esGranel
+                ? $"{FormatearCantidad(p.Stock)} {unidad}s"
+                : FormatearCantidad(p.Stock);
+            lblCantidadAgregar.Text = esGranel ? "Cantidad a vender:" : "Cantidad a agregar:";
             txtCantidadAgregar.Text = "1";
+            txtCantidadAgregar.Visibility = esGranel ? Visibility.Collapsed : Visibility.Visible;
 
 
             brdPreview.Visibility = Visibility.Visible;
             btnAgregarAlCarrito.Visibility = Visibility.Visible;
+            btnAgregarAlCarrito.Content = esGranel ? "Calcular y agregar" : "Agregar al carrito";
 
-            txtCantidadAgregar.Focus();
-            txtCantidadAgregar.SelectAll();
+            if (!esGranel)
+            {
+                txtCantidadAgregar.Focus();
+                txtCantidadAgregar.SelectAll();
+            }
         }
 
         private void OcultarVistaPrevia()
@@ -230,6 +253,12 @@ namespace RefaccionariaPOS.Views
         private void BtnAgregarAlCarrito_Click(object sender, RoutedEventArgs e)
         {
             if (productoEnVistaPrevia == null) return;
+
+            if (EsVentaAGranel(productoEnVistaPrevia))
+            {
+                AbrirCalculadoraGranel(productoEnVistaPrevia);
+                return;
+            }
 
             if (!decimal.TryParse(txtCantidadAgregar.Text, out decimal cantidad) || cantidad <= 0)
             {
@@ -244,6 +273,33 @@ namespace RefaccionariaPOS.Views
             }
 
             AgregarProductoAlCarrito(productoEnVistaPrevia, cantidad);
+        }
+
+        private void AbrirCalculadoraGranel(Producto producto)
+        {
+            CalculadoraGranelWindow calculadora = new CalculadoraGranelWindow(
+                producto.Nombre,
+                ObtenerUnidadVenta(producto),
+                producto.PrecioVenta,
+                producto.Stock)
+            {
+                Owner = this
+            };
+
+            if (calculadora.ShowDialog() == true)
+            {
+                AgregarProductoAlCarrito(producto, calculadora.CantidadSeleccionada);
+            }
+        }
+
+        private static bool EsVentaAGranel(Producto producto)
+        {
+            return !producto.TipoVenta.Equals("Unidad", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static string ObtenerUnidadVenta(Producto producto)
+        {
+            return producto.TipoVenta.Equals("Litro", StringComparison.OrdinalIgnoreCase) ? "Litro" : "Metro";
         }
 
         private void AgregarProductoAlCarrito(Producto producto, decimal cantidad)
@@ -347,6 +403,14 @@ namespace RefaccionariaPOS.Views
                 return;
             }
 
+            if (EsVentaAGranel(producto))
+            {
+                productoEnVistaPrevia = producto;
+                MostrarVistaPrevia(producto);
+                AbrirCalculadoraGranel(producto);
+                return;
+            }
+
             AgregarProductoAlCarrito(producto, 1);
         }
 
@@ -400,60 +464,9 @@ namespace RefaccionariaPOS.Views
         {
             totalVenta = listaCarrito.Sum(item => item.Subtotal);
             lblTotalCarrito.Text = string.Format("{0:C}", totalVenta);
-            ActualizarCambio();
         }
 
-        private void TxtEfectivoRecibido_TextChanged(object sender, TextChangedEventArgs e)
-        {
-            ActualizarCambio();
-        }
-
-        private void CmbMetodoPago_SelectionChanged(object sender, SelectionChangedEventArgs e)
-        {
-            ActualizarCambio();
-        }
-
-        private void ActualizarCambio()
-        {
-            if (txtEfectivoRecibido == null || lblCambio == null || cmbMetodoPago == null)
-            {
-                return;
-            }
-
-            bool esEfectivo = ObtenerMetodoPago().Equals("Efectivo", StringComparison.OrdinalIgnoreCase);
-            txtEfectivoRecibido.IsEnabled = esEfectivo;
-
-            if (!esEfectivo)
-            {
-                lblCambio.Text = "$0.00";
-                return;
-            }
-
-            decimal recibido = LeerEfectivoRecibido();
-            decimal cambio = Math.Max(0, recibido - totalVenta);
-            lblCambio.Text = cambio.ToString("C");
-        }
-
-        private string ObtenerMetodoPago()
-        {
-            return (cmbMetodoPago.SelectedItem as ComboBoxItem)?.Content.ToString() ?? "Efectivo";
-        }
-
-        private decimal LeerEfectivoRecibido()
-        {
-            return decimal.TryParse(txtEfectivoRecibido.Text, out decimal recibido) && recibido > 0
-                ? recibido
-                : 0;
-        }
-
-        private int? ObtenerClienteSeleccionadoId()
-        {
-            return cmbClientes.SelectedValue is int clienteId && clienteId > 0
-                ? clienteId
-                : null;
-        }
-
-        private void CargarClientesFrecuentes()
+        private async Task CargarClientesFrecuentesAsync()
         {
             List<ClienteVentaOpcion> clientes = new()
             {
@@ -463,40 +476,34 @@ namespace RefaccionariaPOS.Views
             try
             {
                 DatabaseConnection db = new DatabaseConnection();
-                using (NpgsqlConnection conexion = db.GetConnection())
+                await using NpgsqlConnection conexion = db.GetConnection();
+                await conexion.OpenAsync();
+
+                const string query = @"
+                    SELECT id, nombre
+                    FROM clientes
+                    ORDER BY nombre ASC;";
+
+                await using NpgsqlCommand cmd = new NpgsqlCommand(query, conexion);
+                await using NpgsqlDataReader reader = await cmd.ExecuteReaderAsync();
+                while (await reader.ReadAsync())
                 {
-                    conexion.Open();
-
-                    const string query = @"
-                        SELECT id, nombre
-                        FROM clientes
-                        ORDER BY nombre ASC;";
-
-                    using (NpgsqlCommand cmd = new NpgsqlCommand(query, conexion))
-                    using (NpgsqlDataReader reader = cmd.ExecuteReader())
+                    clientes.Add(new ClienteVentaOpcion
                     {
-                        while (reader.Read())
-                        {
-                            clientes.Add(new ClienteVentaOpcion
-                            {
-                                Id = Convert.ToInt32(reader["id"]),
-                                Nombre = reader["nombre"].ToString() ?? string.Empty
-                            });
-                        }
-                    }
+                        Id = Convert.ToInt32(reader["id"]),
+                        Nombre = reader["nombre"].ToString() ?? string.Empty
+                    });
                 }
             }
             catch
             {
             }
 
-            cmbClientes.ItemsSource = clientes;
-            cmbClientes.SelectedValue = 0;
+            clientesVenta = clientes;
         }
 
-        private void SumarPuntoClienteSeleccionado(NpgsqlConnection conexion, NpgsqlTransaction transaccion)
+        private static void SumarPuntoCliente(NpgsqlConnection conexion, NpgsqlTransaction transaccion, int? clienteId)
         {
-            int? clienteId = ObtenerClienteSeleccionadoId();
             if (!clienteId.HasValue)
             {
                 return;
@@ -520,22 +527,25 @@ namespace RefaccionariaPOS.Views
                 return;
             }
 
-            int ventaIdGenerado = 0;
-            int folioGeneradoBaseDatos = 0;
-            string metodoPago = ObtenerMetodoPago();
-            decimal efectivoRecibido = metodoPago.Equals("Efectivo", StringComparison.OrdinalIgnoreCase)
-                ? LeerEfectivoRecibido()
-                : 0;
-            decimal cambioEntregado = metodoPago.Equals("Efectivo", StringComparison.OrdinalIgnoreCase)
-                ? efectivoRecibido - totalVenta
-                : 0;
-
-            if (metodoPago.Equals("Efectivo", StringComparison.OrdinalIgnoreCase) && efectivoRecibido < totalVenta)
+            CobroWindow cobro = new CobroWindow(totalVenta, clientesVenta);
+            Window? duenio = Application.Current?.MainWindow;
+            if (duenio != null && duenio.IsVisible && !ReferenceEquals(duenio, this))
             {
-                MessageBox.Show("El efectivo recibido no cubre el total de la venta.", "Efectivo insuficiente", MessageBoxButton.OK, MessageBoxImage.Warning);
-                txtEfectivoRecibido.Focus();
+                cobro.Owner = duenio;
+                cobro.WindowStartupLocation = WindowStartupLocation.CenterOwner;
+            }
+
+            if (cobro.ShowDialog() != true)
+            {
                 return;
             }
+
+            int ventaIdGenerado = 0;
+            int folioGeneradoBaseDatos = 0;
+            string metodoPago = cobro.MetodoPago;
+            decimal efectivoRecibido = cobro.EfectivoRecibido;
+            decimal cambioEntregado = cobro.CambioEntregado;
+            int? clienteId = cobro.ClienteId;
 
             DatabaseConnection db = new DatabaseConnection();
 
@@ -555,7 +565,7 @@ namespace RefaccionariaPOS.Views
                         using (NpgsqlCommand cmdVenta = new NpgsqlCommand(queryVenta, conexion, transaccion))
                         {
                             cmdVenta.Parameters.AddWithValue("@usuarioId", usuarioId == 0 ? DBNull.Value : (object)usuarioId);
-                            cmdVenta.Parameters.AddWithValue("@clienteId", ObtenerClienteSeleccionadoId().HasValue ? (object)ObtenerClienteSeleccionadoId()!.Value : DBNull.Value);
+                            cmdVenta.Parameters.AddWithValue("@clienteId", clienteId.HasValue ? (object)clienteId.Value : DBNull.Value);
                             cmdVenta.Parameters.AddWithValue("@total", totalVenta);
                             cmdVenta.Parameters.AddWithValue("@fecha", DateTime.Now);
                             cmdVenta.Parameters.AddWithValue("@estado", "Completada");
@@ -644,7 +654,7 @@ namespace RefaccionariaPOS.Views
                             }
                         }
 
-                        SumarPuntoClienteSeleccionado(conexion, transaccion);
+                        SumarPuntoCliente(conexion, transaccion, clienteId);
 
                         transaccion.Commit();
                     }
@@ -657,24 +667,21 @@ namespace RefaccionariaPOS.Views
                 }
             }
 
-            GenerarTicket(ventaIdGenerado, folioGeneradoBaseDatos);
+            GenerarTicket(ventaIdGenerado, cobro.Imprimir, cobro.Impresora);
 
-            MessageBox.Show("¡Venta con Folio #" + folioGeneradoBaseDatos + " procesada con éxito!", "Venta Completada", MessageBoxButton.OK, MessageBoxImage.Information);
+            // Aviso por WhatsApp a los numeros configurados (no bloquea ni afecta la venta si falla).
+            WhatsAppNotificationService.NotificarVentaEnSegundoPlano(ventaIdGenerado);
 
             listaCarrito.Clear();
-            txtEfectivoRecibido.Clear();
             ActualizarTotales();
             txtBuscarId.Focus();
         }
 
-        private void GenerarTicket(int ventaId, int folio)
+        private void GenerarTicket(int ventaId, bool imprimir, string? impresora)
         {
             try
             {
-                TicketService.GenerarTicketVenta(
-                    ventaId,
-                    chkImprimirTicket.IsChecked == true,
-                    cmbImpresoras.SelectedItem?.ToString());
+                TicketService.GenerarTicketVenta(ventaId, imprimir, impresora);
             }
             catch (Exception ex)
             {
@@ -802,101 +809,6 @@ namespace RefaccionariaPOS.Views
                 : texto.Substring(0, longitudMaxima);
         }
 
-        private void CargarImpresoras()
-        {
-            cmbImpresoras.Items.Clear();
-
-            foreach (string impresora in PrinterSettings.InstalledPrinters)
-            {
-                cmbImpresoras.Items.Add(impresora);
-            }
-
-            string impresoraDefault = new PrinterSettings().PrinterName;
-            if (cmbImpresoras.Items.Contains(impresoraDefault))
-            {
-                cmbImpresoras.SelectedItem = impresoraDefault;
-            }
-            else if (cmbImpresoras.Items.Count > 0)
-            {
-                cmbImpresoras.SelectedIndex = 0;
-            }
-            else
-            {
-                chkImprimirTicket.IsChecked = false;
-                chkImprimirTicket.IsEnabled = false;
-                btnProbarImpresora.IsEnabled = false;
-            }
-        }
-
-        private void ImprimirTicket(List<string> lineasTicket)
-        {
-            string? impresoraSeleccionada = cmbImpresoras.SelectedItem?.ToString();
-            if (string.IsNullOrWhiteSpace(impresoraSeleccionada))
-            {
-                throw new InvalidOperationException("No hay una impresora seleccionada.");
-            }
-
-            int lineaActual = 0;
-            using (PrintDocument documento = new PrintDocument())
-            {
-                documento.PrinterSettings.PrinterName = impresoraSeleccionada;
-                documento.PrintPage += (sender, e) =>
-                {
-                    if (e.Graphics == null)
-                    {
-                        return;
-                    }
-
-                    using Font fuente = new Font("Courier New", 8);
-                    Brush brocha = Brushes.Black;
-                    float altoLinea = fuente.GetHeight(e.Graphics) + 2;
-                    float x = e.MarginBounds.Left;
-                    float y = e.MarginBounds.Top;
-
-                    while (lineaActual < lineasTicket.Count)
-                    {
-                        if (y + altoLinea > e.MarginBounds.Bottom)
-                        {
-                            e.HasMorePages = true;
-                            return;
-                        }
-
-                        e.Graphics.DrawString(lineasTicket[lineaActual], fuente, brocha, x, y);
-                        y += altoLinea;
-                        lineaActual++;
-                    }
-
-                    e.HasMorePages = false;
-                };
-
-                documento.Print();
-            }
-        }
-
-        private void BtnProbarImpresora_Click(object sender, RoutedEventArgs e)
-        {
-            try
-            {
-                TicketService.ImprimirTicket(new List<string>
-                {
-                    "REFACCIONARIA NORTE",
-                    "AV. DIVICION DEL NORTE N.63 COL. CENTRO",
-                    "----------------------------------------",
-                    "PRUEBA DE IMPRESORA TERMICA",
-                    $"Fecha: {DateTime.Now:dd/MM/yyyy HH:mm:ss}",
-                    "Impresora lista para tickets.",
-                    "----------------------------------------",
-                    string.Empty,
-                    string.Empty
-                }, cmbImpresoras.SelectedItem?.ToString());
-
-                MessageBox.Show("Ticket de prueba enviado a la impresora.", "Impresora", MessageBoxButton.OK, MessageBoxImage.Information);
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show("No se pudo imprimir la prueba: " + ex.Message, "Impresora", MessageBoxButton.OK, MessageBoxImage.Warning);
-            }
-        }
     }
 
     public class ProductoCarrito

@@ -1,6 +1,14 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
-  <Package Name="RefaxManager" Manufacturer="RefaxManager" Version="1.0.23" UpgradeCode="B1B2335E-2332-4603-BD26-0B3B8865024A" Scope="perUser">
+  <!-- Valores por defecto para que el build no falle si no se pasan con -d.
+       En produccion pasalos con: -d WhatsAppToken=... -d WhatsAppPhoneId=... -->
+  <?ifndef WhatsAppToken ?>
+  <?define WhatsAppToken = "" ?>
+  <?endif ?>
+  <?ifndef WhatsAppPhoneId ?>
+  <?define WhatsAppPhoneId = "" ?>
+  <?endif ?>
+  <Package Name="RefaxManager" Manufacturer="RefaxManager" Version="1.0.31" UpgradeCode="B1B2335E-2332-4603-BD26-0B3B8865024A" Scope="perUser">
     <MajorUpgrade DowngradeErrorMessage="Ya existe una version mas reciente de RefaxManager instalada." />
     <MediaTemplate EmbedCab="yes" />
     <Icon Id="RefaxManagerIcon" SourceFile="builds\RefaxManager\RefaxManager.exe" />
@@ -28,6 +36,8 @@
         <File Id="RefaxManagerExe" Source="builds\RefaxManager\RefaxManager.exe" KeyPath="yes" />
         <Environment Id="NeonConnectionEnvironment" Name="REFACCIONARIA_NUEVA_DB_CONNECTION" Value="$(var.DbConnectionString)" Action="set" Part="all" System="no" />
         <Environment Id="LicenseConnectionEnvironment" Name="REFACCIONARIA_LICENSE_DB_CONNECTION" Value="$(var.LicenseDbConnectionString)" Action="set" Part="all" System="no" />
+        <Environment Id="WhatsAppTokenEnvironment" Name="REFAX_WHATSAPP_TOKEN" Value="$(var.WhatsAppToken)" Action="set" Part="all" System="no" />
+        <Environment Id="WhatsAppPhoneIdEnvironment" Name="REFAX_WHATSAPP_PHONE_ID" Value="$(var.WhatsAppPhoneId)" Action="set" Part="all" System="no" />
       </Component>
     </DirectoryRef>
 

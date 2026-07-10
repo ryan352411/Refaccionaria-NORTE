@@ -74,7 +74,11 @@ namespace RefaccionariaPOS.Views
             InitializeComponent();
             VerificarColumnasInventario();
             CargarCategorias();
-            Loaded += (_, _) => txtCodigo.Focus();
+            Loaded += (_, _) =>
+            {
+                ActualizarCamposSegunTipoVenta();
+                txtCodigo.Focus();
+            };
         }
 
         private void BtnGuardar_Click(object sender, RoutedEventArgs e)
@@ -148,12 +152,10 @@ namespace RefaccionariaPOS.Views
             if (productoExistenteId.HasValue)
             {
                 ActualizarProductoExistente(productoExistenteId.Value, costo, precioVenta, stockMinimo, stock);
-                MessageBox.Show("Producto actualizado y stock agregado correctamente.", "Éxito", MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
 
             InsertarProductoNuevo(costo, precioVenta, stockMinimo, stock);
-            MessageBox.Show("Producto registrado con éxito.", "Éxito", MessageBoxButton.OK, MessageBoxImage.Information);
         }
 
         private void InsertarProductoNuevo(decimal costo, decimal precioVenta, decimal stockMinimo, decimal stock)
@@ -327,8 +329,8 @@ namespace RefaccionariaPOS.Views
 
             lblModo.Text = "PRODUCTO EXISTENTE";
             lblModo.Foreground = System.Windows.Media.Brushes.DarkOrange;
-            lblStockCaption.Text = "Stock a Agregar:";
             btnGuardar.Content = "Actualizar Stock";
+            ActualizarCamposSegunTipoVenta();
             txtStock.Focus();
         }
 
@@ -339,8 +341,8 @@ namespace RefaccionariaPOS.Views
             rutasImagenesSeleccionadas.Clear();
             lblModo.Text = "NUEVO PRODUCTO";
             lblModo.Foreground = System.Windows.Media.Brushes.DarkSlateGray;
-            lblStockCaption.Text = "Stock Inicial:";
             btnGuardar.Content = "Guardar";
+            ActualizarCamposSegunTipoVenta();
         }
 
         private void CargarCategorias()
@@ -436,22 +438,68 @@ namespace RefaccionariaPOS.Views
 
         private string ObtenerTipoVenta()
         {
-            return (cmbTipoVenta.SelectedItem as ComboBoxItem)?.Content.ToString() ?? "Unidad";
+            if (EsVentaAGranel())
+            {
+                return (cmbUnidadGranel.SelectedItem as ComboBoxItem)?.Content.ToString() ?? "Metro";
+            }
+
+            return "Unidad";
         }
 
         private void SeleccionarTipoVenta(string tipoVenta)
         {
-            foreach (object item in cmbTipoVenta.Items)
+            bool esGranel = tipoVenta.Equals("Granel", StringComparison.OrdinalIgnoreCase)
+                || tipoVenta.Equals("Metro", StringComparison.OrdinalIgnoreCase)
+                || tipoVenta.Equals("Litro", StringComparison.OrdinalIgnoreCase);
+
+            cmbTipoVenta.SelectedIndex = esGranel ? 1 : 0;
+
+            if (esGranel)
             {
-                if (item is ComboBoxItem comboBoxItem
-                    && string.Equals(comboBoxItem.Content.ToString(), tipoVenta, StringComparison.OrdinalIgnoreCase))
+                string unidadGranel = tipoVenta.Equals("Litro", StringComparison.OrdinalIgnoreCase) ? "Litro" : "Metro";
+                foreach (object item in cmbUnidadGranel.Items)
                 {
-                    cmbTipoVenta.SelectedItem = comboBoxItem;
-                    return;
+                    if (item is ComboBoxItem comboBoxItem
+                        && string.Equals(comboBoxItem.Content.ToString(), unidadGranel, StringComparison.OrdinalIgnoreCase))
+                    {
+                        cmbUnidadGranel.SelectedItem = comboBoxItem;
+                        break;
+                    }
                 }
             }
 
-            cmbTipoVenta.SelectedIndex = 0;
+            ActualizarCamposSegunTipoVenta();
+        }
+
+        private void CmbTipoVenta_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            ActualizarCamposSegunTipoVenta();
+        }
+
+        private void CmbUnidadGranel_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            ActualizarCamposSegunTipoVenta();
+        }
+
+        private bool EsVentaAGranel()
+        {
+            return string.Equals((cmbTipoVenta.SelectedItem as ComboBoxItem)?.Content.ToString(), "Granel", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private void ActualizarCamposSegunTipoVenta()
+        {
+            if (!IsLoaded)
+            {
+                return;
+            }
+
+            bool esGranel = EsVentaAGranel();
+            pnlUnidadGranel.Visibility = esGranel ? Visibility.Visible : Visibility.Collapsed;
+            string unidad = (cmbUnidadGranel.SelectedItem as ComboBoxItem)?.Content.ToString()?.ToLowerInvariant() ?? "metro";
+            lblPrecioVenta.Text = esGranel ? $"Precio por {unidad} ($):" : "Precio venta ($):";
+            lblStockCaption.Text = esGranel
+                ? (productoExistenteId.HasValue ? $"{char.ToUpper(unidad[0])}{unidad[1..]}s a agregar:" : $"{char.ToUpper(unidad[0])}{unidad[1..]}s iniciales:")
+                : (productoExistenteId.HasValue ? "Stock a Agregar:" : "Stock inicial:");
         }
 
         private static void AsegurarColumnasProducto(NpgsqlConnection conexion)

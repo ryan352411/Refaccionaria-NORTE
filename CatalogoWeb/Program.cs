@@ -111,17 +111,17 @@ app.MapFallbackToFile("index.html");
 
 app.Run();
 
-public sealed class DatabaseConnection
+public sealed class DatabaseConnection : IDisposable
 {
     private const string PrimaryConnectionEnvironmentVariable = "REFACCIONARIA_NUEVA_DB_CONNECTION";
     private const string ConnectionEnvironmentVariable = "REFACCIONARIA_DB_CONNECTION";
 
-    private readonly string connectionString = BuildConnectionString(GetConfiguredConnectionString());
+    private readonly NpgsqlDataSource dataSource = NpgsqlDataSource.Create(
+        BuildConnectionString(GetConfiguredConnectionString()));
 
-    public NpgsqlDataSource CreateDataSource()
-    {
-        return NpgsqlDataSource.Create(connectionString);
-    }
+    public NpgsqlDataSource DataSource => dataSource;
+
+    public void Dispose() => dataSource.Dispose();
 
     private static string? GetConfiguredConnectionString()
     {
@@ -257,7 +257,7 @@ public sealed class CatalogoRepository(DatabaseConnection databaseConnection)
             CREATE INDEX IF NOT EXISTS idx_producto_imagenes_producto_orden ON producto_imagenes (producto_id, orden, id);
             """;
 
-        await using NpgsqlDataSource dataSource = databaseConnection.CreateDataSource();
+        NpgsqlDataSource dataSource = databaseConnection.DataSource;
         await using NpgsqlCommand command = dataSource.CreateCommand(sql);
         await command.ExecuteNonQueryAsync();
     }
@@ -271,7 +271,7 @@ public sealed class CatalogoRepository(DatabaseConnection databaseConnection)
             FROM productos;
             """;
 
-        await using NpgsqlDataSource dataSource = databaseConnection.CreateDataSource();
+        NpgsqlDataSource dataSource = databaseConnection.DataSource;
         await using NpgsqlCommand command = dataSource.CreateCommand(sql);
         await using NpgsqlDataReader reader = await command.ExecuteReaderAsync();
 
@@ -298,7 +298,7 @@ public sealed class CatalogoRepository(DatabaseConnection databaseConnection)
             """;
 
         List<CategoriaCatalogo> categorias = [];
-        await using NpgsqlDataSource dataSource = databaseConnection.CreateDataSource();
+        NpgsqlDataSource dataSource = databaseConnection.DataSource;
         await using NpgsqlCommand command = dataSource.CreateCommand(sql);
         await using NpgsqlDataReader reader = await command.ExecuteReaderAsync();
 
@@ -357,7 +357,7 @@ public sealed class CatalogoRepository(DatabaseConnection databaseConnection)
             LIMIT @limite OFFSET @offset;
             """;
 
-        await using NpgsqlDataSource dataSource = databaseConnection.CreateDataSource();
+        NpgsqlDataSource dataSource = databaseConnection.DataSource;
 
         int total = 0;
         await using (NpgsqlCommand countCommand = dataSource.CreateCommand(countSql))
@@ -381,10 +381,12 @@ public sealed class CatalogoRepository(DatabaseConnection databaseConnection)
             }
         }
 
+        IReadOnlyDictionary<int, IReadOnlyList<string>> imagenesPorProducto =
+            await GetImagenUrlsAsync(dataSource, productos);
         for (int index = 0; index < productos.Count; index++)
         {
             ProductoCatalogo producto = productos[index];
-            IReadOnlyList<string> imagenes = await GetImagenUrlsAsync(dataSource, producto.Id, producto.ImagenUrl);
+            IReadOnlyList<string> imagenes = imagenesPorProducto[producto.Id];
             productos[index] = producto with
             {
                 ImagenUrl = imagenes.FirstOrDefault() ?? string.Empty,
@@ -424,7 +426,7 @@ public sealed class CatalogoRepository(DatabaseConnection databaseConnection)
             LIMIT 1;
             """;
 
-        await using NpgsqlDataSource dataSource = databaseConnection.CreateDataSource();
+        NpgsqlDataSource dataSource = databaseConnection.DataSource;
         await using NpgsqlCommand command = dataSource.CreateCommand(sql);
         command.Parameters.AddWithValue("@id", id);
         command.Parameters.AddWithValue("@indice", Math.Max(0, indice));
@@ -460,46 +462,64 @@ public sealed class CatalogoRepository(DatabaseConnection databaseConnection)
         return new ImagenProducto(localPath, localContentType, null);
     }
 
-    private async Task<IReadOnlyList<string>> GetImagenUrlsAsync(NpgsqlDataSource dataSource, int id, string fallbackImageValue)
+    private async Task<IReadOnlyDictionary<int, IReadOnlyList<string>>> GetImagenUrlsAsync(
+        NpgsqlDataSource dataSource,
+        IReadOnlyList<ProductoCatalogo> productos)
     {
+        if (productos.Count == 0)
+        {
+            return new Dictionary<int, IReadOnlyList<string>>();
+        }
+
         const string sql = """
-            SELECT imagen_url, COALESCE(octet_length(imagen_data), 0) > 0 AS tiene_imagen_data
+            SELECT producto_id, imagen_url, COALESCE(octet_length(imagen_data), 0) > 0 AS tiene_imagen_data
             FROM producto_imagenes
-            WHERE producto_id = @id
-            ORDER BY orden, id;
+            WHERE producto_id = ANY (@ids)
+            ORDER BY producto_id, orden, id;
             """;
 
-        List<string> imagenes = [];
+        Dictionary<int, List<string>> imagenesPorProducto = [];
+        Dictionary<int, int> siguienteIndice = [];
         await using NpgsqlCommand command = dataSource.CreateCommand(sql);
-        command.Parameters.AddWithValue("@id", id);
+        command.Parameters.AddWithValue("@ids", productos.Select(producto => producto.Id).ToArray());
 
         await using (NpgsqlDataReader reader = await command.ExecuteReaderAsync())
         {
-            int indice = 0;
             while (await reader.ReadAsync())
             {
+                int productoId = Convert.ToInt32(reader["producto_id"], CultureInfo.InvariantCulture);
+                int indice = siguienteIndice.GetValueOrDefault(productoId);
+                siguienteIndice[productoId] = indice + 1;
                 string imagenUrl = reader["imagen_url"].ToString() ?? string.Empty;
                 bool tieneImagenData = reader["tiene_imagen_data"] is bool valorTieneImagen && valorTieneImagen;
-                string urlPublica = BuildPublicImageUrl(id, indice, imagenUrl, tieneImagenData);
+                string urlPublica = BuildPublicImageUrl(productoId, indice, imagenUrl, tieneImagenData);
                 if (!string.IsNullOrWhiteSpace(urlPublica))
                 {
+                    if (!imagenesPorProducto.TryGetValue(productoId, out List<string>? imagenes))
+                    {
+                        imagenes = [];
+                        imagenesPorProducto[productoId] = imagenes;
+                    }
+
                     imagenes.Add(urlPublica);
                 }
-
-                indice++;
             }
         }
 
-        if (imagenes.Count == 0)
+        Dictionary<int, IReadOnlyList<string>> resultado = [];
+        foreach (ProductoCatalogo producto in productos)
         {
-            string urlFallback = BuildPublicImageUrl(id, 0, fallbackImageValue, hasImageData: false);
-            if (!string.IsNullOrWhiteSpace(urlFallback))
+            if (imagenesPorProducto.TryGetValue(producto.Id, out List<string>? imagenes) && imagenes.Count > 0)
             {
-                imagenes.Add(urlFallback);
+                resultado[producto.Id] = imagenes;
+                continue;
             }
+
+            string urlFallback = BuildPublicImageUrl(producto.Id, 0, producto.ImagenUrl, hasImageData: false);
+            resultado[producto.Id] = string.IsNullOrWhiteSpace(urlFallback) ? [] : [urlFallback];
         }
 
-        return imagenes;
+        return resultado;
     }
 
     private static void AddFilterParameters(NpgsqlCommand command, CatalogoFiltro filtro, string searchPattern)

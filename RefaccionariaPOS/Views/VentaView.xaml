@@ -11,7 +11,7 @@
     <Grid>
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="*"/>
-            <ColumnDefinition Width="380"/>
+            <ColumnDefinition Width="420"/>
         </Grid.ColumnDefinitions>
 
         <Border Grid.Column="0" Background="White" Margin="15" CornerRadius="10" Padding="15">
@@ -50,12 +50,12 @@
             </Grid>
         </Border>
 
-        <Border Grid.Column="1" Background="#ECF0F1" Margin="0,15,15,15" CornerRadius="10" Padding="15">
+        <Border Grid.Column="1" Background="#F8FAFC" Margin="0,15,15,15" CornerRadius="12" Padding="18" BorderBrush="#DCE6F2" BorderThickness="1">
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="160"/>
                     <RowDefinition Height="*"/>
-                    <RowDefinition Height="Auto"/>
                 </Grid.RowDefinitions>
 
                 <StackPanel Grid.Row="0" Margin="0,0,0,20">
@@ -66,7 +66,7 @@
                     <TextBlock Text="Escaner USB activo: escanea el codigo y se agregara con Enter." FontSize="11" Foreground="#2563EB" Margin="0,8,0,0" TextWrapping="Wrap"/>
                 </StackPanel>
 
-                <DataGrid Grid.Row="1" x:Name="dgResultadosBusqueda" AutoGenerateColumns="False" IsReadOnly="True" 
+                <DataGrid Grid.Row="1" x:Name="dgResultadosBusqueda" AutoGenerateColumns="False" IsReadOnly="True"
                           SelectionMode="Single" SelectionChanged="DgResultadosBusqueda_SelectionChanged"
                           Background="White" RowHeight="35" HeadersVisibility="Column" Visibility="Collapsed" Cursor="Hand">
                     <DataGrid.Columns>
@@ -76,7 +76,8 @@
                     </DataGrid.Columns>
                 </DataGrid>
 
-                <Border Grid.Row="1" x:Name="brdPreview" Background="White" CornerRadius="5" Padding="15" Visibility="Collapsed" BorderBrush="#BDC3C7" BorderThickness="1">
+                <Border Grid.Row="1" Grid.RowSpan="2" x:Name="brdPreview" Background="White" CornerRadius="8" Padding="18" Visibility="Collapsed" BorderBrush="#BFDBFE" BorderThickness="1">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                     <StackPanel>
                         <TextBlock Text="Vista previa del articulo" FontSize="14" FontWeight="Bold" Foreground="#7F8C8D" HorizontalAlignment="Center" Margin="0,0,0,15"/>
 
@@ -94,46 +95,15 @@
 
                         <Separator Background="#BDC3C7" Margin="0,5,0,15"/>
 
-                        <TextBlock Text="Cantidad a Agregar:" FontSize="11" Foreground="#95A5A6"/>
+                        <TextBlock x:Name="lblCantidadAgregar" Text="Cantidad a Agregar:" FontSize="11" Foreground="#95A5A6"/>
                         <TextBox x:Name="txtCantidadAgregar" Text="1" Height="35" FontSize="16" FontWeight="Bold" TextAlignment="Center" Padding="5,7,5,5"/>
+
+                        <Button x:Name="btnAgregarAlCarrito" Content="Agregar al carrito" Height="46" Margin="0,15,0,0"
+                                Background="#E67E22" Foreground="White" FontSize="16" FontWeight="Bold" BorderThickness="0" Cursor="Hand" Click="BtnAgregarAlCarrito_Click" Visibility="Collapsed"/>
                     </StackPanel>
+                    </ScrollViewer>
                 </Border>
 
-                <StackPanel Grid.Row="2" Margin="0,15,0,0">
-                    <Border Background="White" CornerRadius="8" Padding="12" BorderBrush="#BBF7D0" BorderThickness="1" Margin="0,0,0,12">
-                        <StackPanel>
-                            <TextBlock Text="Cobro" FontSize="13" FontWeight="Bold" Foreground="#14532D"/>
-                            <TextBlock Text="Cliente frecuente" FontSize="11" Foreground="#64748B" Margin="0,8,0,3"/>
-                            <ComboBox x:Name="cmbClientes" DisplayMemberPath="Nombre" SelectedValuePath="Id"/>
-                            <TextBlock Text="Metodo de pago" FontSize="11" Foreground="#64748B" Margin="0,8,0,3"/>
-                            <ComboBox x:Name="cmbMetodoPago" SelectedIndex="0" SelectionChanged="CmbMetodoPago_SelectionChanged">
-                                <ComboBoxItem Content="Efectivo"/>
-                                <ComboBoxItem Content="Tarjeta"/>
-                                <ComboBoxItem Content="Transferencia"/>
-                            </ComboBox>
-                            <TextBlock Text="Efectivo recibido" FontSize="11" Foreground="#64748B" Margin="0,8,0,3"/>
-                            <TextBox x:Name="txtEfectivoRecibido" Height="32" TextChanged="TxtEfectivoRecibido_TextChanged"/>
-                            <DockPanel Margin="0,8,0,0">
-                                <TextBlock Text="Cambio" FontWeight="Bold" Foreground="#334155"/>
-                                <TextBlock x:Name="lblCambio" Text="$0.00" DockPanel.Dock="Right" FontWeight="Black" Foreground="#16A34A" HorizontalAlignment="Right"/>
-                            </DockPanel>
-                        </StackPanel>
-                    </Border>
-
-                    <Border Background="White" CornerRadius="8" Padding="12" BorderBrush="#BFDBFE" BorderThickness="1" Margin="0,0,0,12">
-                        <StackPanel>
-                            <TextBlock Text="Impresora de Tickets" FontSize="13" FontWeight="Bold" Foreground="#1E3A8A"/>
-                            <ComboBox x:Name="cmbImpresoras" Margin="0,8,0,8"/>
-                            <DockPanel>
-                                <CheckBox x:Name="chkImprimirTicket" Content="Imprimir al cobrar" IsChecked="True" VerticalAlignment="Center"/>
-                                <Button x:Name="btnProbarImpresora" Content="Probar" DockPanel.Dock="Right" Width="88" Background="#06B6D4" Click="BtnProbarImpresora_Click"/>
-                            </DockPanel>
-                        </StackPanel>
-                    </Border>
-
-                    <Button x:Name="btnAgregarAlCarrito" Content="Agregar al carrito" Height="46"
-                            Background="#E67E22" Foreground="White" FontSize="16" FontWeight="Bold" BorderThickness="0" Cursor="Hand" Click="BtnAgregarAlCarrito_Click" Visibility="Collapsed"/>
-                </StackPanel>
             </Grid>
         </Border>
     </Grid>

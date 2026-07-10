@@ -61,33 +61,35 @@ namespace RefaccionariaPOS.Views
             lblRolVisual.Text = $"{usuarioActual} - {rolUsuarioActual}";
             btnUsuarioActual.Content = usuarioActual.Length > 20 ? usuarioActual.Substring(0, 20) + "..." : usuarioActual;
             btnUsuarioActual.ToolTip = "Cambiar usuario: " + usuarioActual;
-            btnVenta.IsEnabled = TienePermiso("ventas.abrir");
-            btnArticulosComunes.IsEnabled = TienePermiso("ventas.abrir");
-            btnInventario.IsEnabled = TienePermiso("inventario.ver");
-            btnHistorial.IsEnabled = TienePermiso("ventas.reimprimir_ticket") || !EsVendedorExacto();
-            btnDevoluciones.IsEnabled = TienePermiso("ventas.devoluciones");
-            btnClientes.IsEnabled = TienePermiso("clientes.ver");
-            btnReimprimir.IsEnabled = TienePermiso("ventas.reimprimir_ticket");
-            btnCorteCaja.IsEnabled = TienePermiso("corte.ver");
-            btnUsuarios.IsEnabled = TienePermiso("usuarios.permisos");
+            ConfigurarBoton(btnVenta, TienePermiso("ventas.abrir"));
+            ConfigurarBoton(btnArticulosComunes, TienePermiso("ventas.abrir"));
+            ConfigurarBoton(btnInventario, TienePermiso("inventario.ver"));
+            ConfigurarBoton(btnHistorial, TienePermiso("ventas.reimprimir_ticket") || !EsVendedorExacto());
+            ConfigurarBoton(btnDevoluciones, TienePermiso("ventas.devoluciones"));
+            ConfigurarBoton(btnClientes, TienePermiso("clientes.ver"));
+            ConfigurarBoton(btnReimprimir, TienePermiso("ventas.reimprimir_ticket"));
+            ConfigurarBoton(btnCorteCaja, TienePermiso("corte.ver"));
+            ConfigurarBoton(btnUsuarios, TienePermiso("usuarios.permisos"));
+            ConfigurarBoton(btnWhatsApp, TienePermiso("usuarios.permisos"));
 
             if (!EsRolRestringido() || permisosActuales.Count > 0)
             {
                 return;
             }
 
-            btnHistorial.IsEnabled = false;
-            btnDevoluciones.IsEnabled = false;
-            btnClientes.IsEnabled = false;
-            btnReimprimir.IsEnabled = false;
-            btnCorteCaja.IsEnabled = false;
-            btnUsuarios.IsEnabled = false;
+            ConfigurarBoton(btnHistorial, false);
+            ConfigurarBoton(btnDevoluciones, false);
+            ConfigurarBoton(btnClientes, false);
+            ConfigurarBoton(btnReimprimir, false);
+            ConfigurarBoton(btnCorteCaja, false);
+            ConfigurarBoton(btnUsuarios, false);
+            ConfigurarBoton(btnWhatsApp, false);
 
             if (EsEncargadoInventario())
             {
-                btnVenta.IsEnabled = false;
-                btnArticulosComunes.IsEnabled = false;
-                btnInventario.IsEnabled = true;
+                ConfigurarBoton(btnVenta, false);
+                ConfigurarBoton(btnArticulosComunes, false);
+                ConfigurarBoton(btnInventario, true);
                 lblSubtitulo.Text = "Inventario activo. Registra productos, actualiza stock e imagenes.";
                 return;
             }
@@ -95,21 +97,30 @@ namespace RefaccionariaPOS.Views
             lblSubtitulo.Text = "Terminal de cobro activa. Registra ventas y consulta inventario.";
         }
 
+        private static void ConfigurarBoton(Button boton, bool habilitado)
+        {
+            boton.IsEnabled = habilitado;
+            boton.Visibility = habilitado ? Visibility.Visible : Visibility.Collapsed;
+        }
+
         private void BtnUsuarios_Click(object sender, RoutedEventArgs e)
         {
             MostrarEnPanel(new RegistrarUsuarioView());
         }
 
+        private void BtnWhatsApp_Click(object sender, RoutedEventArgs e)
+        {
+            MostrarEnPanel(new WhatsAppDestinatariosView());
+        }
+
         private void BtnInventario_Click(object sender, RoutedEventArgs e)
         {
             MostrarEnPanel(new InventarioView(!TienePermiso("inventario.editar")));
-            CargarAlertasInventario();
         }
 
         private void BtnVenta_Click(object sender, RoutedEventArgs e)
         {
             MostrarEnPanel(new VentaView(idUsuarioActual));
-            CargarAlertasInventario();
         }
 
         private void BtnArticulosComunes_Click(object sender, RoutedEventArgs e)
@@ -145,7 +156,6 @@ namespace RefaccionariaPOS.Views
             e.Handled = true;
 
             MostrarEnPanel(new VentaView(idUsuarioActual, codigo));
-            CargarAlertasInventario();
         }
 
         private void BtnHistorial_Click(object sender, RoutedEventArgs e)
@@ -195,8 +205,6 @@ namespace RefaccionariaPOS.Views
                 using (NpgsqlConnection conexion = db.GetConnection())
                 {
                     conexion.Open();
-                    ProductImageRepository.AsegurarTabla(conexion);
-
                     const string query = @"
                         SELECT p.id, p.codigo_barras, p.nombre, p.categoria, p.precio_venta, p.stock_actual
                         FROM productos p
@@ -321,8 +329,6 @@ namespace RefaccionariaPOS.Views
                 DatabaseConnection db = new DatabaseConnection();
                 using NpgsqlConnection conexion = db.GetConnection();
                 conexion.Open();
-                ProductImageRepository.AsegurarTabla(conexion);
-
                 const string query = @"
                     SELECT imagen_url, imagen_data
                     FROM producto_imagenes
@@ -876,6 +882,10 @@ namespace RefaccionariaPOS.Views
                 {
                     venta.ActivarDesdePanel();
                 }
+                else if (ventana is InventarioView inventario)
+                {
+                    inventario.ActivarDesdePanel();
+                }
                 else if (ventana is ArticulosComunesView articulosComunes)
                 {
                     articulosComunes.ActivarDesdePanel();
@@ -883,6 +893,10 @@ namespace RefaccionariaPOS.Views
                 else if (ventana is ClientesView clientes)
                 {
                     clientes.ActivarDesdePanel();
+                }
+                else if (ventana is WhatsAppDestinatariosView whatsapp)
+                {
+                    whatsapp.ActivarDesdePanel();
                 }
             }), DispatcherPriority.Loaded);
         }
@@ -901,7 +915,7 @@ namespace RefaccionariaPOS.Views
 
             Button btnCerrar = new Button
             {
-                Content = "Cerrar",
+                Content = "Volver al inicio",
                 Width = 92,
                 Height = 34,
                 HorizontalAlignment = HorizontalAlignment.Right,

@@ -9,6 +9,7 @@ namespace RefaccionariaPOS
         protected override void OnStartup(StartupEventArgs e)
         {
             base.OnStartup(e);
+            ShutdownMode = ShutdownMode.OnMainWindowClose;
 
             if (!ActivationService.Validate(out string activationMessage))
             {

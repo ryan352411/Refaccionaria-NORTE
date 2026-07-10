@@ -39,10 +39,10 @@
                 </Grid.RowDefinitions>
 
                 <Grid Grid.Row="0" Margin="0,0,0,14">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="Auto"/>
-                        <ColumnDefinition Width="Auto"/>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
 
                     <StackPanel Grid.Column="0" VerticalAlignment="Center">
@@ -100,6 +100,7 @@
                             </Border>
                         </Grid>
                     </Button>
+
                 </Grid>
 
                 <WrapPanel Grid.Row="1" VerticalAlignment="Center">
@@ -112,6 +113,7 @@
                     <Button x:Name="btnReimprimir" Content="Reimprimir Tickets" Style="{StaticResource TopNavButton}" Click="BtnReimprimir_Click"/>
                     <Button x:Name="btnCorteCaja" Content="Corte de Caja" Style="{StaticResource TopNavButton}" Background="#2980B9" FontWeight="Bold" Click="BtnCorteCaja_Click"/>
                     <Button x:Name="btnUsuarios" Content="Gestionar Personal" Style="{StaticResource TopNavButton}" Background="#6C5CE7" FontWeight="Bold" Click="BtnUsuarios_Click"/>
+                    <Button x:Name="btnWhatsApp" Content="Avisos WhatsApp" Style="{StaticResource TopNavButton}" Background="#25D366" FontWeight="Bold" Click="BtnWhatsApp_Click"/>
                 </WrapPanel>
             </Grid>
         </Border>
