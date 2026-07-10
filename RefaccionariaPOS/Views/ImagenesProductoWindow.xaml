@@ -8,7 +8,40 @@
         MinWidth="480"
         ResizeMode="CanResizeWithGrip"
         WindowStartupLocation="CenterOwner"
-        Background="#F4F6F9">
+        Background="#EEF2F7">
+
+    <Window.Resources>
+        <Style x:Key="BotonRedondeado" TargetType="Button">
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="16,0"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="fondo"
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="10"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="fondo" Property="Opacity" Value="0.88"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="fondo" Property="Opacity" Value="0.75"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="fondo" Property="Opacity" Value="0.45"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
 
     <Grid Margin="16">
         <Grid.RowDefinitions>
@@ -26,10 +59,13 @@
 
         <Border Grid.Row="1"
                 Background="White"
-                CornerRadius="8"
-                BorderBrush="#BFDBFE"
+                CornerRadius="14"
+                BorderBrush="#E2E8F0"
                 BorderThickness="1"
                 Margin="0,12,0,12">
+            <Border.Effect>
+                <DropShadowEffect Color="#1E293B" Opacity="0.06" BlurRadius="18" ShadowDepth="2" Direction="270"/>
+            </Border.Effect>
             <Grid>
                 <Image x:Name="imgProducto" Stretch="Uniform" Margin="10"/>
                 <TextBlock x:Name="lblEstado"
@@ -54,14 +90,11 @@
 
             <Button x:Name="btnAnterior"
                     Grid.Column="0"
-                    Content="&#x25C0; Anterior"
+                    Content="&#x25C0;  Anterior"
+                    Style="{StaticResource BotonRedondeado}"
                     MinWidth="110"
-                    Height="34"
-                    Padding="12,0"
+                    Height="38"
                     Background="#64748B"
-                    Foreground="White"
-                    FontWeight="SemiBold"
-                    Cursor="Hand"
                     IsEnabled="False"
                     Click="BtnAnterior_Click"/>
 
@@ -74,14 +107,11 @@
 
             <Button x:Name="btnSiguiente"
                     Grid.Column="2"
-                    Content="Siguiente &#x25B6;"
+                    Content="Siguiente  &#x25B6;"
+                    Style="{StaticResource BotonRedondeado}"
                     MinWidth="110"
-                    Height="34"
-                    Padding="12,0"
+                    Height="38"
                     Background="#64748B"
-                    Foreground="White"
-                    FontWeight="SemiBold"
-                    Cursor="Hand"
                     IsEnabled="False"
                     Click="BtnSiguiente_Click"/>
         </Grid>

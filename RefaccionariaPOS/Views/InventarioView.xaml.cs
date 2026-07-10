@@ -53,7 +53,7 @@ namespace RefaccionariaPOS.Views
 
         private readonly ObservableCollection<string> categorias = new();
         private static readonly Brush FilaDisponible = Brushes.White;
-        private static readonly Brush FilaDisponibleAlterna = new SolidColorBrush(Color.FromRgb(236, 240, 241));
+        private static readonly Brush FilaDisponibleAlterna = new SolidColorBrush(Color.FromRgb(248, 250, 252));
         private static readonly Brush FilaBajoStock = new SolidColorBrush(Color.FromRgb(255, 237, 213));
         private static readonly Brush FilaSinStock = new SolidColorBrush(Color.FromRgb(254, 226, 226));
         private static readonly Brush TextoInventario = new SolidColorBrush(Color.FromRgb(30, 41, 59));
