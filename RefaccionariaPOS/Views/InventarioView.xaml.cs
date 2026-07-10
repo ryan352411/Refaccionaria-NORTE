@@ -6,10 +6,14 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Globalization;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
 using System.Windows.Media;
+using System.Windows.Threading;
 
 namespace RefaccionariaPOS.Views
 {
@@ -18,24 +22,21 @@ namespace RefaccionariaPOS.Views
         private const string CategoriaTodas = "Todas";
         private const string CategoriaGeneral = "General";
 
-        private const string QueryProductos = @"
+        private const string QueryProductosBase = @"
             SELECT p.id, p.codigo_barras, p.nombre, p.descripcion, p.costo_proveedor, p.precio_venta,
                    p.stock_actual, p.stock_minimo, p.categoria,
                    COALESCE(pi.imagen_url, p.imagen_url, '') AS imagen_url,
-                   pi.imagen_data,
-                   COALESCE(p.tipo_venta, 'Unidad') AS tipo_venta
+                   COALESCE(p.tipo_venta, 'Unidad') AS tipo_venta,
+                   (pi.producto_id IS NOT NULL OR COALESCE(p.imagen_url, '') <> '') AS tiene_imagenes
             FROM productos p
             LEFT JOIN LATERAL (
-                SELECT imagen_url, imagen_data
+                SELECT producto_id, imagen_url
                 FROM producto_imagenes
                 WHERE producto_id = p.id
+                  AND (COALESCE(octet_length(imagen_data), 0) > 0 OR COALESCE(imagen_url, '') <> '')
                 ORDER BY orden, id
                 LIMIT 1
-            ) pi ON true
-            WHERE (p.nombre ILIKE @busqueda OR p.codigo_barras ILIKE @busqueda OR p.descripcion ILIKE @busqueda)
-              AND (@categoria = 'Todas' OR categoria = @categoria)
-              AND (@soloBajoStock = false OR stock_actual <= stock_minimo)
-            ORDER BY p.nombre ASC;";
+            ) pi ON true";
 
         private const string QueryCategorias = @"
             SELECT DISTINCT categoria
@@ -57,57 +58,181 @@ namespace RefaccionariaPOS.Views
         private static readonly Brush FilaSinStock = new SolidColorBrush(Color.FromRgb(254, 226, 226));
         private static readonly Brush TextoInventario = new SolidColorBrush(Color.FromRgb(30, 41, 59));
         private readonly bool soloLectura;
+        private readonly DispatcherTimer filtroTimer;
+        private CancellationTokenSource? cargaProductosCts;
+        private List<Producto>? productosEnMemoria;
+        private Task? inicializacionTask;
         private bool filtrosListos;
 
         public InventarioView(bool soloLectura = false)
         {
             InitializeComponent();
             this.soloLectura = soloLectura;
-
-            VerificarColumnasInventario();
-            ConfigurarModoLectura();
             cmbCategoria.ItemsSource = categorias;
-            CargarCategorias();
-            CargarProductos();
-            filtrosListos = true;
+
+            filtroTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(300) };
+            filtroTimer.Tick += async (_, _) =>
+            {
+                filtroTimer.Stop();
+                await CargarProductosAsync(txtBuscar.Text.Trim());
+            };
+
+            Loaded += async (_, _) => await InicializarAsync();
         }
 
-        private void CargarProductos(string terminoBusqueda = "")
+        public async void ActivarDesdePanel()
         {
+            await InicializarAsync();
+        }
+
+        private Task InicializarAsync()
+        {
+            return inicializacionTask ??= InicializarCoreAsync();
+        }
+
+        private async Task InicializarCoreAsync()
+        {
+            ConfigurarModoLectura();
+            filtrosListos = true;
+            Task categoriasTask = CargarCategoriasAsync();
+            Task estructuraTask = VerificarColumnasInventarioAsync();
+            await CargarProductosAsync();
+            await Task.WhenAll(categoriasTask, estructuraTask);
+        }
+
+        private async Task CargarProductosAsync(string terminoBusqueda = "")
+        {
+            string categoria = CategoriaSeleccionada();
+            bool soloBajoStock = chkBajoStock.IsChecked == true;
+
+            if (productosEnMemoria is { Count: > 0 })
+            {
+                dgInventario.ItemsSource = FiltrarProductosEnMemoria(productosEnMemoria, terminoBusqueda, categoria, soloBajoStock);
+                lblEstadoCarga.Visibility = Visibility.Collapsed;
+                return;
+            }
+
+            cargaProductosCts?.Cancel();
+            CancellationTokenSource currentCts = new();
+            cargaProductosCts = currentCts;
+            CancellationToken cancellationToken = currentCts.Token;
+
             try
             {
-                dgInventario.ItemsSource = ObtenerProductos(terminoBusqueda);
+                lblEstadoCarga.Text = "Cargando inventario...";
+                lblEstadoCarga.Visibility = Visibility.Visible;
+                List<Producto> productos = await ObtenerProductosAsync(
+                    terminoBusqueda,
+                    categoria,
+                    soloBajoStock,
+                    cancellationToken);
+
+                if (!cancellationToken.IsCancellationRequested)
+                {
+                    dgInventario.ItemsSource = productos;
+                    if (string.IsNullOrWhiteSpace(terminoBusqueda)
+                        && categoria == CategoriaTodas
+                        && !soloBajoStock
+                        && productos.Count > 0)
+                    {
+                        productosEnMemoria = productos;
+                    }
+                    lblEstadoCarga.Text = productos.Count == 0 ? "No se encontraron productos." : string.Empty;
+                    lblEstadoCarga.Visibility = productos.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+                }
+            }
+            catch (OperationCanceledException)
+            {
             }
             catch (Exception ex)
             {
+                lblEstadoCarga.Text = "No se pudo cargar el inventario.";
+                lblEstadoCarga.Visibility = Visibility.Visible;
                 MessageBox.Show("Error al cargar el inventario: " + ex.Message, "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            finally
+            {
+                if (ReferenceEquals(cargaProductosCts, currentCts))
+                {
+                    cargaProductosCts = null;
+                }
+
+                currentCts.Dispose();
             }
         }
 
-        private List<Producto> ObtenerProductos(string terminoBusqueda)
+        private static List<Producto> FiltrarProductosEnMemoria(
+            IEnumerable<Producto> productos,
+            string terminoBusqueda,
+            string categoria,
+            bool soloBajoStock)
+        {
+            string busqueda = terminoBusqueda.Trim();
+            return productos
+                .Where(producto => string.IsNullOrEmpty(busqueda)
+                    || producto.CodigoBarras.Equals(busqueda, StringComparison.OrdinalIgnoreCase)
+                    || producto.Nombre.Contains(busqueda, StringComparison.OrdinalIgnoreCase))
+                .Where(producto => categoria == CategoriaTodas || producto.Categoria.Equals(categoria, StringComparison.OrdinalIgnoreCase))
+                .Where(producto => !soloBajoStock || producto.Stock <= producto.StockMinimo)
+                .OrderBy(producto => producto.Nombre, StringComparer.CurrentCultureIgnoreCase)
+                .Take(200)
+                .ToList();
+        }
+
+        private void InvalidarCacheProductos()
+        {
+            productosEnMemoria = null;
+        }
+
+        private static async Task<List<Producto>> ObtenerProductosAsync(
+            string terminoBusqueda,
+            string categoria,
+            bool soloBajoStock,
+            CancellationToken cancellationToken)
         {
             List<Producto> productos = new();
             DatabaseConnection db = new DatabaseConnection();
 
-            using (NpgsqlConnection conexion = db.GetConnection())
+            using NpgsqlConnection conexion = db.GetConnection();
+            await conexion.OpenAsync(cancellationToken);
+
+            List<string> filtros = new();
+            if (!string.IsNullOrWhiteSpace(terminoBusqueda))
             {
-                conexion.Open();
-                ProductImageRepository.AsegurarTabla(conexion);
+                filtros.Add("(p.codigo_barras = @busqueda OR p.nombre ILIKE @busquedaLike)");
+            }
 
-                using (NpgsqlCommand cmd = new NpgsqlCommand(QueryProductos, conexion))
-                {
-                    cmd.Parameters.AddWithValue("@busqueda", "%" + terminoBusqueda + "%");
-                    cmd.Parameters.AddWithValue("@categoria", CategoriaSeleccionada());
-                    cmd.Parameters.AddWithValue("@soloBajoStock", chkBajoStock.IsChecked == true);
+            if (categoria != CategoriaTodas)
+            {
+                filtros.Add("p.categoria = @categoria");
+            }
 
-                    using (NpgsqlDataReader reader = cmd.ExecuteReader())
-                    {
-                        while (reader.Read())
-                        {
-                            productos.Add(CrearProducto(reader));
-                        }
-                    }
-                }
+            if (soloBajoStock)
+            {
+                filtros.Add("p.stock_actual <= p.stock_minimo");
+            }
+
+            string query = QueryProductosBase
+                + (filtros.Count == 0 ? string.Empty : " WHERE " + string.Join(" AND ", filtros))
+                + " ORDER BY p.nombre ASC LIMIT 200;";
+
+            using NpgsqlCommand cmd = new NpgsqlCommand(query, conexion);
+            if (!string.IsNullOrWhiteSpace(terminoBusqueda))
+            {
+                cmd.Parameters.AddWithValue("@busqueda", terminoBusqueda);
+                cmd.Parameters.AddWithValue("@busquedaLike", "%" + terminoBusqueda + "%");
+            }
+
+            if (categoria != CategoriaTodas)
+            {
+                cmd.Parameters.AddWithValue("@categoria", categoria);
+            }
+            cmd.CommandTimeout = 15;
+
+            using NpgsqlDataReader reader = await cmd.ExecuteReaderAsync(cancellationToken);
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                productos.Add(CrearProducto(reader));
             }
 
             return productos;
@@ -123,7 +248,7 @@ namespace RefaccionariaPOS.Views
                 Descripcion = reader["descripcion"].ToString() ?? string.Empty,
                 Categoria = reader["categoria"].ToString() ?? CategoriaGeneral,
                 ImagenUrl = reader["imagen_url"].ToString() ?? string.Empty,
-                ImagenData = reader["imagen_data"] is DBNull ? null : (byte[])reader["imagen_data"],
+                TieneImagenes = reader["tiene_imagenes"] is bool tieneImagenes && tieneImagenes,
                 TipoVenta = reader["tipo_venta"].ToString() ?? "Unidad",
                 PrecioCompra = Convert.ToDecimal(reader["costo_proveedor"]),
                 PrecioVenta = Convert.ToDecimal(reader["precio_venta"]),
@@ -132,7 +257,7 @@ namespace RefaccionariaPOS.Views
             };
         }
 
-        private void BtnNuevo_Click(object sender, RoutedEventArgs e)
+        private async void BtnNuevo_Click(object sender, RoutedEventArgs e)
         {
             if (soloLectura)
             {
@@ -146,34 +271,84 @@ namespace RefaccionariaPOS.Views
                 return;
             }
 
-            CargarCategorias();
-            CargarProductos(txtBuscar.Text.Trim());
+            InvalidarCacheProductos();
+            await CargarCategoriasAsync();
+            await CargarProductosAsync(txtBuscar.Text.Trim());
         }
 
         private void TxtBuscar_TextChanged(object sender, TextChangedEventArgs e)
         {
-            CargarProductos(txtBuscar.Text.Trim());
+            ProgramarCargaProductos();
         }
 
         private void CmbCategoria_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             if (filtrosListos)
             {
-                CargarProductos(txtBuscar.Text.Trim());
+                ProgramarCargaProductos();
             }
         }
 
-        private void ChkBajoStock_Click(object sender, RoutedEventArgs e)
+        private async void ChkBajoStock_Click(object sender, RoutedEventArgs e)
         {
-            CargarProductos(txtBuscar.Text.Trim());
+            await CargarProductosAsync(txtBuscar.Text.Trim());
         }
 
-        private void BtnLimpiarFiltros_Click(object sender, RoutedEventArgs e)
+        private async void BtnLimpiarFiltros_Click(object sender, RoutedEventArgs e)
         {
+            filtroTimer.Stop();
             txtBuscar.Clear();
             cmbCategoria.SelectedIndex = 0;
             chkBajoStock.IsChecked = false;
-            CargarProductos();
+            await CargarProductosAsync();
+        }
+
+        private void ProgramarCargaProductos()
+        {
+            if (!filtrosListos)
+            {
+                return;
+            }
+
+            filtroTimer.Stop();
+            filtroTimer.Start();
+        }
+
+        private void DgInventario_MouseDoubleClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
+        {
+            if (ItemsControl.ContainerFromElement(dgInventario, e.OriginalSource as DependencyObject) is not DataGridRow fila
+                || fila.Item is not Producto producto)
+            {
+                return;
+            }
+
+            AbrirVisorImagenes(producto);
+        }
+
+        private void ImagenProducto_MouseLeftButtonUp(object sender, System.Windows.Input.MouseButtonEventArgs e)
+        {
+            if (sender is FrameworkElement elemento && elemento.DataContext is Producto producto)
+            {
+                e.Handled = true;
+                AbrirVisorImagenes(producto);
+            }
+        }
+
+        private void MenuVerImagenes_Click(object sender, RoutedEventArgs e)
+        {
+            if (dgInventario.SelectedItem is Producto producto)
+            {
+                AbrirVisorImagenes(producto);
+            }
+        }
+
+        private void AbrirVisorImagenes(Producto producto)
+        {
+            ImagenesProductoWindow visor = new ImagenesProductoWindow(producto.Id, producto.Nombre)
+            {
+                Owner = this
+            };
+            visor.ShowDialog();
         }
 
         private void DgInventario_LoadingRow(object sender, DataGridRowEventArgs e)
@@ -200,7 +375,7 @@ namespace RefaccionariaPOS.Views
             e.Row.Background = e.Row.GetIndex() % 2 == 0 ? FilaDisponible : FilaDisponibleAlterna;
         }
 
-        private void MenuActualizarStock_Click(object sender, RoutedEventArgs e)
+        private async void MenuActualizarStock_Click(object sender, RoutedEventArgs e)
         {
             if (soloLectura)
             {
@@ -219,8 +394,9 @@ namespace RefaccionariaPOS.Views
 
             if (decimal.TryParse(nuevoStockStr, out decimal nuevoStock) && nuevoStock >= 0)
             {
-                ActualizarStockEnBaseDeDatos(productoSeleccionado.CodigoBarras, nuevoStock);
-                CargarProductos(txtBuscar.Text.Trim());
+                await ActualizarStockEnBaseDeDatosAsync(productoSeleccionado.CodigoBarras, nuevoStock);
+                InvalidarCacheProductos();
+                await CargarProductosAsync(txtBuscar.Text.Trim());
                 return;
             }
 
@@ -230,20 +406,20 @@ namespace RefaccionariaPOS.Views
             }
         }
 
-        private void ActualizarStockEnBaseDeDatos(string codigo, decimal nuevoStock)
+        private static async Task ActualizarStockEnBaseDeDatosAsync(string codigo, decimal nuevoStock)
         {
             try
             {
                 DatabaseConnection db = new DatabaseConnection();
                 using (NpgsqlConnection conexion = db.GetConnection())
                 {
-                    conexion.Open();
+                    await conexion.OpenAsync();
 
                     using (NpgsqlCommand cmd = new NpgsqlCommand("UPDATE productos SET stock_actual = @stock WHERE codigo_barras = @codigo;", conexion))
                     {
                         cmd.Parameters.AddWithValue("@stock", nuevoStock);
                         cmd.Parameters.AddWithValue("@codigo", codigo);
-                        cmd.ExecuteNonQuery();
+                        await cmd.ExecuteNonQueryAsync();
                     }
                 }
             }
@@ -253,13 +429,14 @@ namespace RefaccionariaPOS.Views
             }
         }
 
-        private void CargarCategorias()
+        private async Task CargarCategoriasAsync()
         {
             string categoriaActual = CategoriaSeleccionada();
+            List<string> categoriasDesdeBase = await ObtenerCategoriasAsync();
             categorias.Clear();
             categorias.Add(CategoriaTodas);
 
-            foreach (string categoria in ObtenerCategorias())
+            foreach (string categoria in categoriasDesdeBase)
             {
                 categorias.Add(categoria);
             }
@@ -267,25 +444,21 @@ namespace RefaccionariaPOS.Views
             cmbCategoria.SelectedItem = categorias.Contains(categoriaActual) ? categoriaActual : CategoriaTodas;
         }
 
-        private List<string> ObtenerCategorias()
+        private static async Task<List<string>> ObtenerCategoriasAsync()
         {
             List<string> resultado = new();
 
             try
             {
                 DatabaseConnection db = new DatabaseConnection();
-                using (NpgsqlConnection conexion = db.GetConnection())
-                {
-                    conexion.Open();
+                using NpgsqlConnection conexion = db.GetConnection();
+                await conexion.OpenAsync();
 
-                    using (NpgsqlCommand cmd = new NpgsqlCommand(QueryCategorias, conexion))
-                    using (NpgsqlDataReader reader = cmd.ExecuteReader())
-                    {
-                        while (reader.Read())
-                        {
-                            resultado.Add(reader["categoria"].ToString() ?? CategoriaGeneral);
-                        }
-                    }
+                using NpgsqlCommand cmd = new NpgsqlCommand(QueryCategorias, conexion);
+                using NpgsqlDataReader reader = await cmd.ExecuteReaderAsync();
+                while (await reader.ReadAsync())
+                {
+                    resultado.Add(reader["categoria"].ToString() ?? CategoriaGeneral);
                 }
             }
             catch
@@ -296,25 +469,19 @@ namespace RefaccionariaPOS.Views
             return resultado;
         }
 
-        private void VerificarColumnasInventario()
+        private static async Task VerificarColumnasInventarioAsync()
         {
             try
             {
                 DatabaseConnection db = new DatabaseConnection();
-                using (NpgsqlConnection conexion = db.GetConnection())
-                {
-                    conexion.Open();
-                    AsegurarColumnasProducto(conexion);
-                    ProductImageRepository.AsegurarTabla(conexion);
+                using NpgsqlConnection conexion = db.GetConnection();
+                await conexion.OpenAsync();
 
-                    using (NpgsqlCommand cmd = new NpgsqlCommand(QueryVerificarColumnas, conexion))
-                    {
-                        int columnas = Convert.ToInt32(cmd.ExecuteScalar());
-                        if (columnas < 4)
-                        {
-                            AsegurarColumnasProducto(conexion);
-                        }
-                    }
+                using NpgsqlCommand cmd = new NpgsqlCommand(QueryVerificarColumnas, conexion);
+                int columnas = Convert.ToInt32(await cmd.ExecuteScalarAsync());
+                if (columnas < 4)
+                {
+                    await AsegurarColumnasProductoAsync(conexion);
                 }
             }
             catch (Exception ex)
@@ -389,7 +556,7 @@ namespace RefaccionariaPOS.Views
             return ventana;
         }
 
-        private static void AsegurarColumnasProducto(NpgsqlConnection conexion)
+        private static async Task AsegurarColumnasProductoAsync(NpgsqlConnection conexion)
         {
             const string query = @"
                 ALTER TABLE productos
@@ -400,10 +567,8 @@ namespace RefaccionariaPOS.Views
                     ALTER COLUMN stock_actual TYPE numeric(12, 3) USING stock_actual::numeric,
                     ALTER COLUMN stock_minimo TYPE numeric(12, 3) USING stock_minimo::numeric;";
 
-            using (NpgsqlCommand cmd = new NpgsqlCommand(query, conexion))
-            {
-                cmd.ExecuteNonQuery();
-            }
+            using NpgsqlCommand cmd = new NpgsqlCommand(query, conexion);
+            await cmd.ExecuteNonQueryAsync();
         }
     }
 

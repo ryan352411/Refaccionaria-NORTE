@@ -12,6 +12,7 @@
 
     <Window.Resources>
         <local:ImagenProductoConverter x:Key="ImagenProductoConverter"/>
+        <BooleanToVisibilityConverter x:Key="BoolAVisibilidad"/>
     </Window.Resources>
 
     <Grid Margin="20">
@@ -58,18 +59,31 @@
                         Foreground="White"
                         FontWeight="SemiBold"
                         Click="BtnLimpiarFiltros_Click"/>
+
+                <TextBlock x:Name="lblEstadoCarga"
+                           Margin="16,24,0,0"
+                           Foreground="#64748B"
+                           FontWeight="SemiBold"
+                           Visibility="Collapsed"/>
             </WrapPanel>
         </Border>
 
         <DataGrid x:Name="dgInventario" Grid.Row="2" AutoGenerateColumns="False"
                   IsReadOnly="True" Background="White" RowHeight="56" AlternatingRowBackground="#ecf0f1"
                   RowHeaderWidth="0"
+                  EnableRowVirtualization="True"
+                  EnableColumnVirtualization="True"
+                  VirtualizingStackPanel.IsVirtualizing="True"
+                  VirtualizingStackPanel.VirtualizationMode="Recycling"
+                  ScrollViewer.CanContentScroll="True"
                   ScrollViewer.HorizontalScrollBarVisibility="Auto"
                   ScrollViewer.VerticalScrollBarVisibility="Auto"
-                  LoadingRow="DgInventario_LoadingRow">
+                  LoadingRow="DgInventario_LoadingRow"
+                  MouseDoubleClick="DgInventario_MouseDoubleClick">
 
             <DataGrid.ContextMenu>
                 <ContextMenu>
+                    <MenuItem Header="Ver imágenes" Click="MenuVerImagenes_Click"/>
                     <MenuItem x:Name="menuActualizarStock" Header="Actualizar Stock Físico" Click="MenuActualizarStock_Click"/>
                 </ContextMenu>
             </DataGrid.ContextMenu>
@@ -78,8 +92,14 @@
                 <DataGridTemplateColumn Header="Imagen" Width="70">
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate>
-                            <Border Width="46" Height="46" Background="#E2E8F0" CornerRadius="4" HorizontalAlignment="Center" VerticalAlignment="Center">
-                                <Image Source="{Binding Converter={StaticResource ImagenProductoConverter}}" Stretch="UniformToFill"/>
+                            <Border Width="46" Height="46" Background="#E2E8F0" CornerRadius="4" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                    Cursor="Hand" ToolTip="Click para ver las imágenes del producto"
+                                    MouseLeftButtonUp="ImagenProducto_MouseLeftButtonUp">
+                                <Grid>
+                                    <TextBlock Text="&#x1F4F7;" FontSize="18" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                               Visibility="{Binding TieneImagenes, Converter={StaticResource BoolAVisibilidad}}"/>
+                                    <Image Source="{Binding Converter={StaticResource ImagenProductoConverter}}" Stretch="UniformToFill"/>
+                                </Grid>
                             </Border>
                         </DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>
