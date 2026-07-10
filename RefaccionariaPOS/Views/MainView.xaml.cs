@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Text;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
@@ -39,6 +40,8 @@ namespace RefaccionariaPOS.Views
         private DateTime ultimoCaracterScanner = DateTime.MinValue;
         private Window? vistaEmbebidaActual;
         private int indiceImagenProductoInicio;
+        private DispatcherTimer? offlineTimer;
+        private int ciclosOffline;
 
         public MainView(int idUsuario, string usuario, string rol)
         {
@@ -54,6 +57,75 @@ namespace RefaccionariaPOS.Views
             ConfigurarPermisosPorRol();
             ConfigurarBuscadorInicio();
             CargarAlertasInventario();
+            IniciarModoOffline();
+        }
+
+        // =====================================================================
+        // MODO OFFLINE: sincroniza ventas pendientes y refresca el catalogo
+        // local cada cierto tiempo para poder operar sin internet.
+        // =====================================================================
+        private void IniciarModoOffline()
+        {
+            ActualizarEstadoConexion();
+
+            offlineTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(60) };
+            offlineTimer.Tick += async (_, _) =>
+            {
+                ciclosOffline++;
+                // El catalogo local se refresca cada 10 minutos; las ventas
+                // pendientes se intentan subir en cada ciclo.
+                await SincronizarOfflineAsync(refrescarCatalogo: ciclosOffline % 10 == 0);
+            };
+            offlineTimer.Start();
+
+            _ = SincronizarOfflineAsync(refrescarCatalogo: true);
+        }
+
+        private async Task SincronizarOfflineAsync(bool refrescarCatalogo)
+        {
+            try
+            {
+                int sincronizadas = await OfflineSyncService.SincronizarVentasPendientesAsync();
+
+                if (refrescarCatalogo || sincronizadas > 0)
+                {
+                    await OfflineSyncService.RefrescarCachesAsync();
+                }
+            }
+            catch (Exception ex)
+            {
+                if (EstadoConexion.EsErrorDeConexion(ex))
+                {
+                    EstadoConexion.MarcarFalla();
+                }
+            }
+
+            ActualizarEstadoConexion();
+        }
+
+        private void ActualizarEstadoConexion()
+        {
+            int pendientes = OfflineStore.ContarVentasPendientes();
+
+            if (pendientes > 0)
+            {
+                lblEstadoConexion.Text = pendientes == 1
+                    ? "  •  1 venta por sincronizar"
+                    : $"  •  {pendientes} ventas por sincronizar";
+                lblEstadoConexion.Foreground = new SolidColorBrush(Color.FromRgb(245, 158, 11));
+                lblEstadoConexion.Visibility = Visibility.Visible;
+                return;
+            }
+
+            if (EstadoConexion.HayFallaReciente)
+            {
+                lblEstadoConexion.Text = "  •  Sin conexion - modo offline";
+                lblEstadoConexion.Foreground = new SolidColorBrush(Color.FromRgb(248, 113, 113));
+                lblEstadoConexion.Visibility = Visibility.Visible;
+                return;
+            }
+
+            lblEstadoConexion.Visibility = Visibility.Collapsed;
         }
 
         private void ConfigurarPermisosPorRol()

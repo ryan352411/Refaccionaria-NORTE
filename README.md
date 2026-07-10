@@ -46,6 +46,17 @@ dotnet restore
 dotnet build
 ```
 
+## Modo offline del POS
+
+RefaxManager puede seguir vendiendo aunque se caiga el internet:
+
+- Mientras hay conexion, la app guarda en la computadora una copia del catalogo de productos y de los usuarios (`%LocalAppData%\RefaxManager\Offline`). Se refresca al abrir el panel y cada 10 minutos.
+- Si la conexion falla, el punto de venta busca productos en la copia local, cobra normalmente e imprime un ticket provisional con la leyenda "VENTA SIN CONEXION" y folio "PENDIENTE".
+- Las ventas offline quedan en una cola local y se suben solas a Neon (en orden, con su fecha original) cuando regresa el internet; el panel principal muestra cuantas ventas faltan por sincronizar.
+- El inicio de sesion tambien funciona sin internet usando los usuarios guardados localmente. Se necesita haber entrado al menos una vez con conexion en esa computadora.
+
+Limitaciones del modo offline: inventario (alta/edicion), historial, devoluciones, corte de caja, clientes frecuentes y articulos comunes requieren conexion. Los avisos de WhatsApp de las ventas offline se envian al momento de sincronizar.
+
 ## Catalogo web para clientes
 
 La carpeta `CatalogoWeb` contiene una pagina web de solo lectura para que los clientes consulten piezas en existencia, precios de venta, categorias e imagenes de productos usando la misma base de datos del POS.

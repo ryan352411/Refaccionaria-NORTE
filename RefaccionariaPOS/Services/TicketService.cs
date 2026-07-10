@@ -27,6 +27,23 @@ namespace RefaccionariaPOS.Services
             return rutaArchivo;
         }
 
+        /// <summary>
+        /// Genera un ticket a partir de datos en memoria (sin consultar la base).
+        /// Se usa en modo offline: el folio real se asigna al sincronizar.
+        /// </summary>
+        public static string GenerarTicketLocal(TicketVenta ticket, bool imprimir, string? impresora = null)
+        {
+            List<string> lineas = CrearLineas(ticket, esReimpresion: false, esProvisional: true);
+            string rutaArchivo = GuardarTicket(ticket.Folio, lineas, "TicketOffline");
+
+            if (imprimir)
+            {
+                ImprimirTicket(lineas, impresora);
+            }
+
+            return rutaArchivo;
+        }
+
         public static string ReimprimirTicket(int ventaId, int usuarioId)
         {
             AsegurarTablaReimpresiones();
@@ -117,7 +134,7 @@ namespace RefaccionariaPOS.Services
             }
         }
 
-        private static List<string> CrearLineas(TicketVenta ticket, bool esReimpresion)
+        private static List<string> CrearLineas(TicketVenta ticket, bool esReimpresion, bool esProvisional = false)
         {
             List<string> lineas = new();
             lineas.Add(Centrar("REFACCIONARIA"));
@@ -132,9 +149,14 @@ namespace RefaccionariaPOS.Services
                 lineas.Add(Centrar("REIMPRESION"));
             }
 
+            if (esProvisional)
+            {
+                lineas.Add(Centrar("VENTA SIN CONEXION"));
+            }
+
             lineas.Add(Centrar(FormatearFechaTicket(ticket.Fecha)));
             lineas.Add(FilaCampo("CAJERO:", ticket.Vendedor));
-            lineas.Add(FilaCampo("FOLIO:", ticket.Folio.ToString()));
+            lineas.Add(FilaCampo("FOLIO:", esProvisional ? "PENDIENTE" : ticket.Folio.ToString()));
             lineas.Add(string.Empty);
             lineas.Add(FilaEncabezadoVenta());
             lineas.Add(SeparadorDoble());

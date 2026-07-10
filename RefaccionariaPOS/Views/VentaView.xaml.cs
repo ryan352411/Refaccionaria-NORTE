@@ -137,6 +137,49 @@ namespace RefaccionariaPOS.Views
 
         private static async Task<List<Producto>> BuscarProductosAsync(string busqueda, CancellationToken cancellationToken)
         {
+            if (EstadoConexion.DebeIntentarOnline)
+            {
+                try
+                {
+                    List<Producto> resultados = await BuscarProductosOnlineAsync(busqueda, cancellationToken);
+                    EstadoConexion.MarcarExito();
+                    return resultados;
+                }
+                catch (OperationCanceledException)
+                {
+                    throw;
+                }
+                catch (Exception ex) when (EstadoConexion.EsErrorDeConexion(ex))
+                {
+                    EstadoConexion.MarcarFalla();
+                }
+            }
+
+            return BuscarProductosOffline(busqueda);
+        }
+
+        private static List<Producto> BuscarProductosOffline(string busqueda)
+        {
+            return OfflineStore.BuscarProductos(busqueda, 15)
+                .Select(ConvertirProductoOffline)
+                .ToList();
+        }
+
+        private static Producto ConvertirProductoOffline(ProductoOffline producto)
+        {
+            return new Producto
+            {
+                Id = producto.Id,
+                CodigoBarras = producto.CodigoBarras,
+                Nombre = producto.Nombre,
+                PrecioVenta = producto.PrecioVenta,
+                Stock = producto.Stock,
+                TipoVenta = producto.TipoVenta
+            };
+        }
+
+        private static async Task<List<Producto>> BuscarProductosOnlineAsync(string busqueda, CancellationToken cancellationToken)
+        {
             List<Producto> resultados = new List<Producto>();
             DatabaseConnection db = new DatabaseConnection();
 
@@ -416,6 +459,26 @@ namespace RefaccionariaPOS.Views
 
         private static async Task<Producto?> BuscarProductoPorCodigoExactoAsync(string codigo)
         {
+            if (EstadoConexion.DebeIntentarOnline)
+            {
+                try
+                {
+                    Producto? resultado = await BuscarProductoPorCodigoExactoOnlineAsync(codigo);
+                    EstadoConexion.MarcarExito();
+                    return resultado;
+                }
+                catch (Exception ex) when (EstadoConexion.EsErrorDeConexion(ex))
+                {
+                    EstadoConexion.MarcarFalla();
+                }
+            }
+
+            ProductoOffline? productoLocal = OfflineStore.BuscarProductoPorCodigo(codigo);
+            return productoLocal == null ? null : ConvertirProductoOffline(productoLocal);
+        }
+
+        private static async Task<Producto?> BuscarProductoPorCodigoExactoOnlineAsync(string codigo)
+        {
             DatabaseConnection db = new DatabaseConnection();
 
             await using (NpgsqlConnection conexion = db.GetConnection())
@@ -540,13 +603,54 @@ namespace RefaccionariaPOS.Views
                 return;
             }
 
-            int ventaIdGenerado = 0;
-            int folioGeneradoBaseDatos = 0;
             string metodoPago = cobro.MetodoPago;
             decimal efectivoRecibido = cobro.EfectivoRecibido;
             decimal cambioEntregado = cobro.CambioEntregado;
             int? clienteId = cobro.ClienteId;
 
+            int ventaIdGenerado = 0;
+            bool ventaOffline = true;
+
+            if (EstadoConexion.DebeIntentarOnline)
+            {
+                try
+                {
+                    ventaIdGenerado = RegistrarVentaEnBase(metodoPago, efectivoRecibido, cambioEntregado, clienteId);
+                    EstadoConexion.MarcarExito();
+                    ventaOffline = false;
+                }
+                catch (Exception ex) when (EstadoConexion.EsErrorDeConexion(ex))
+                {
+                    // Sin conexion: la venta se registra localmente y se sincroniza despues.
+                    EstadoConexion.MarcarFalla();
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show("Error al procesar la venta en la Base de Datos: " + ex.Message, "Venta Cancelada", MessageBoxButton.OK, MessageBoxImage.Error);
+                    return;
+                }
+            }
+
+            if (ventaOffline)
+            {
+                RegistrarVentaOffline(metodoPago, efectivoRecibido, cambioEntregado, clienteId, cobro.Imprimir, cobro.Impresora);
+            }
+            else
+            {
+                GenerarTicket(ventaIdGenerado, cobro.Imprimir, cobro.Impresora);
+
+                // Aviso por WhatsApp a los numeros configurados (no bloquea ni afecta la venta si falla).
+                WhatsAppNotificationService.NotificarVentaEnSegundoPlano(ventaIdGenerado);
+            }
+
+            listaCarrito.Clear();
+            ActualizarTotales();
+            txtBuscarId.Focus();
+        }
+
+        private int RegistrarVentaEnBase(string metodoPago, decimal efectivoRecibido, decimal cambioEntregado, int? clienteId)
+        {
+            int ventaIdGenerado = 0;
             DatabaseConnection db = new DatabaseConnection();
 
             using (NpgsqlConnection conexion = db.GetConnection())
@@ -578,7 +682,6 @@ namespace RefaccionariaPOS.Views
                                 if (reader.Read())
                                 {
                                     ventaIdGenerado = Convert.ToInt32(reader["id"]);
-                                    folioGeneradoBaseDatos = Convert.ToInt32(reader["folio"]);
                                 }
                             }
                         }
@@ -658,23 +761,87 @@ namespace RefaccionariaPOS.Views
 
                         transaccion.Commit();
                     }
-                    catch (Exception ex)
+                    catch
                     {
                         transaccion.Rollback();
-                        MessageBox.Show("Error al procesar la venta en la Base de Datos: " + ex.Message, "Venta Cancelada", MessageBoxButton.OK, MessageBoxImage.Error);
-                        return;
+                        throw;
                     }
                 }
             }
 
-            GenerarTicket(ventaIdGenerado, cobro.Imprimir, cobro.Impresora);
+            return ventaIdGenerado;
+        }
 
-            // Aviso por WhatsApp a los numeros configurados (no bloquea ni afecta la venta si falla).
-            WhatsAppNotificationService.NotificarVentaEnSegundoPlano(ventaIdGenerado);
+        private void RegistrarVentaOffline(string metodoPago, decimal efectivoRecibido, decimal cambioEntregado, int? clienteId, bool imprimir, string? impresora)
+        {
+            DateTime fecha = DateTime.Now;
+            VentaOffline venta = new VentaOffline
+            {
+                UsuarioId = usuarioId,
+                ClienteId = clienteId,
+                Fecha = fecha,
+                Total = totalVenta,
+                MetodoPago = metodoPago,
+                EfectivoRecibido = efectivoRecibido,
+                CambioEntregado = cambioEntregado,
+                Detalles = listaCarrito.Select(item => new VentaOfflineDetalle
+                {
+                    ProductoId = item.ProductoId > 0 ? item.ProductoId : null,
+                    CodigoBarras = item.CodigoBarras,
+                    Nombre = item.Nombre,
+                    Cantidad = item.Cantidad,
+                    PrecioUnitario = item.PrecioVenta,
+                    Subtotal = item.Subtotal,
+                    EsArticuloComun = item.EsArticuloComun
+                }).ToList()
+            };
 
-            listaCarrito.Clear();
-            ActualizarTotales();
-            txtBuscarId.Focus();
+            OfflineStore.AgregarVentaPendiente(venta);
+            OfflineStore.DescontarStock(venta.Detalles
+                .Where(detalle => !detalle.EsArticuloComun)
+                .Select(detalle => (detalle.CodigoBarras, detalle.Cantidad)));
+
+            TicketVenta ticket = new TicketVenta
+            {
+                Folio = 0,
+                Fecha = fecha,
+                Total = totalVenta,
+                MetodoPago = metodoPago,
+                EfectivoRecibido = efectivoRecibido,
+                CambioEntregado = cambioEntregado,
+                Vendedor = ObtenerNombreVendedorLocal()
+            };
+
+            foreach (VentaOfflineDetalle detalle in venta.Detalles)
+            {
+                ticket.Detalles.Add(new TicketDetalle
+                {
+                    Codigo = detalle.EsArticuloComun ? "COMUN" : detalle.CodigoBarras,
+                    Nombre = detalle.Nombre,
+                    Cantidad = detalle.Cantidad,
+                    PrecioUnitario = detalle.PrecioUnitario,
+                    Subtotal = detalle.Subtotal
+                });
+            }
+
+            try
+            {
+                TicketService.GenerarTicketLocal(ticket, imprimir, impresora);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("La venta se guardo, pero no se pudo generar o imprimir el ticket: " + ex.Message, "Aviso", MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
+
+            MessageBox.Show(
+                "No hay conexion con el servidor. La venta quedo guardada en esta computadora\n" +
+                "y se sincronizara automaticamente cuando regrese el internet.",
+                "Venta guardada (modo offline)", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+
+        private string ObtenerNombreVendedorLocal()
+        {
+            return OfflineStore.CargarUsuarios().FirstOrDefault(u => u.Id == usuarioId)?.Username ?? "CAJA";
         }
 
         private void GenerarTicket(int ventaId, bool imprimir, string? impresora)

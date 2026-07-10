@@ -52,6 +52,13 @@
                             <TextBlock Text="  -  " FontSize="12" Foreground="#6B7B93"/>
                             <TextBlock Text="Rol activo: " FontSize="12" Foreground="#B8C4D6"/>
                             <TextBlock x:Name="lblRolVisual" Text="Cargando..." FontSize="12" FontWeight="Bold" Foreground="#2ECC71"/>
+                            <TextBlock x:Name="lblEstadoConexion"
+                                       Text=""
+                                       FontSize="12"
+                                       FontWeight="Bold"
+                                       Foreground="#F59E0B"
+                                       Margin="14,0,0,0"
+                                       Visibility="Collapsed"/>
                         </StackPanel>
                     </StackPanel>
 
