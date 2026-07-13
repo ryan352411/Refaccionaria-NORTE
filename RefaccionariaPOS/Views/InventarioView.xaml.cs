@@ -344,10 +344,20 @@ namespace RefaccionariaPOS.Views
 
         private void AbrirVisorImagenes(Producto producto)
         {
-            ImagenesProductoWindow visor = new ImagenesProductoWindow(producto.Id, producto.Nombre)
+            ImagenesProductoWindow visor = new ImagenesProductoWindow(producto.Id, producto.Nombre);
+
+            // La vista puede estar incrustada en el panel principal; solo una ventana ya mostrada puede ser Owner.
+            Window? duenio = Application.Current?.MainWindow;
+            if (duenio != null && duenio.IsVisible && !ReferenceEquals(duenio, this))
             {
-                Owner = this
-            };
+                visor.Owner = duenio;
+                visor.WindowStartupLocation = WindowStartupLocation.CenterOwner;
+            }
+            else if (IsVisible)
+            {
+                visor.Owner = this;
+            }
+
             visor.ShowDialog();
         }
 

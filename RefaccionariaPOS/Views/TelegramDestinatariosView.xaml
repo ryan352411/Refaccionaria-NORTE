@@ -1,7 +1,7 @@
-<Window x:Class="RefaccionariaPOS.Views.WhatsAppDestinatariosView"
+<Window x:Class="RefaccionariaPOS.Views.TelegramDestinatariosView"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Avisos por WhatsApp"
+        Title="Avisos por Telegram"
         Height="640"
         Width="980"
         MinHeight="560"
@@ -16,8 +16,8 @@
         </Grid.RowDefinitions>
 
         <StackPanel Grid.Row="0" Margin="0,0,0,18">
-            <TextBlock Text="Avisos por WhatsApp" FontSize="28" FontWeight="Bold" Foreground="#1E272E"/>
-            <TextBlock Text="Numeros que reciben un mensaje cada vez que se registra una venta." FontSize="14" Foreground="#64748B" Margin="0,6,0,0"/>
+            <TextBlock Text="Avisos por Telegram" FontSize="28" FontWeight="Bold" Foreground="#1E272E"/>
+            <TextBlock Text="Chats que reciben un mensaje cada vez que se registra una venta." FontSize="14" Foreground="#64748B" Margin="0,6,0,0"/>
         </StackPanel>
 
         <Grid Grid.Row="1">
@@ -30,10 +30,12 @@
                 <StackPanel>
                     <TextBlock x:Name="lblModo" Text="Nuevo destinatario" FontSize="18" FontWeight="Bold" Foreground="#1E272E" Margin="0,0,0,16"/>
 
-                    <TextBlock Text="Numero de WhatsApp" FontWeight="SemiBold" Foreground="#334155" Margin="0,0,0,5"/>
-                    <TextBox x:Name="txtNumero" Height="34" Padding="8,6" Margin="0,0,0,4"/>
-                    <TextBlock Text="Formato internacional sin +. Mexico: 52 y 10 digitos. Ej: 5212381234567"
-                               FontSize="11" Foreground="#94A3B8" TextWrapping="Wrap" Margin="0,0,0,12"/>
+                    <Button x:Name="btnDetectar" Content="Detectar chat nuevo" Height="40" Margin="0,0,0,4" Background="#229ED9" Foreground="White" FontWeight="Bold" Click="BtnDetectar_Click"/>
+                    <TextBlock Text="Pide a la persona que busque el bot en Telegram y le escriba cualquier mensaje. Luego presiona el boton y sus datos se llenan solos."
+                               FontSize="11" Foreground="#94A3B8" TextWrapping="Wrap" Margin="0,0,0,14"/>
+
+                    <TextBlock Text="Chat ID" FontWeight="SemiBold" Foreground="#334155" Margin="0,0,0,5"/>
+                    <TextBox x:Name="txtChatId" Height="34" Padding="8,6" Margin="0,0,0,12"/>
 
                     <TextBlock Text="Nombre (opcional)" FontWeight="SemiBold" Foreground="#334155" Margin="0,0,0,5"/>
                     <TextBox x:Name="txtNombre" Height="34" Padding="8,6" Margin="0,0,0,12"/>
@@ -71,7 +73,7 @@
                               SelectionChanged="DgDestinatarios_SelectionChanged">
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="ID" Binding="{Binding Id}" Width="60"/>
-                            <DataGridTextColumn Header="Numero" Binding="{Binding Numero}" Width="180"/>
+                            <DataGridTextColumn Header="Chat ID" Binding="{Binding ChatId}" Width="160"/>
                             <DataGridTextColumn Header="Nombre" Binding="{Binding Nombre}" Width="*"/>
                             <DataGridTextColumn Header="Estado" Binding="{Binding EstadoTexto}" Width="110"/>
                             <DataGridTextColumn Header="Alta" Binding="{Binding FechaAlta, StringFormat={}{0:dd/MM/yyyy}}" Width="110"/>

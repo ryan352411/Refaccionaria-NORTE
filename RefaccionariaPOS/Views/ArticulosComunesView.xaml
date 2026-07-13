@@ -26,7 +26,6 @@
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="330"/>
                 <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="300"/>
             </Grid.ColumnDefinitions>
 
             <Border Grid.Column="0" Background="White" CornerRadius="8" Padding="18" Margin="0,0,18,0" BorderBrush="#FED7AA" BorderThickness="1">
@@ -46,7 +45,7 @@
                 </StackPanel>
             </Border>
 
-            <Border Grid.Column="1" Background="White" CornerRadius="8" Padding="18" Margin="0,0,18,0" BorderBrush="#E2E8F0" BorderThickness="1">
+            <Border Grid.Column="1" Background="White" CornerRadius="8" Padding="18" BorderBrush="#E2E8F0" BorderThickness="1">
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
@@ -74,62 +73,16 @@
                 </Grid>
             </Border>
 
-            <Border Grid.Column="2" Background="White" CornerRadius="8" Padding="18" BorderBrush="#BBF7D0" BorderThickness="1">
-                <Grid>
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="*"/>
-                        <RowDefinition Height="Auto"/>
-                    </Grid.RowDefinitions>
-
-                    <TextBlock Grid.Row="0" Text="Cobro" FontSize="18" FontWeight="Bold" Foreground="#14532D" Margin="0,0,0,16"/>
-
-                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
-                        <StackPanel>
-                            <TextBlock Text="Cliente frecuente" FontWeight="SemiBold" Foreground="#334155" Margin="0,0,0,6"/>
-                            <ComboBox x:Name="cmbClientes" DisplayMemberPath="Nombre" SelectedValuePath="Id" Margin="0,0,0,14"/>
-
-                            <TextBlock Text="Metodo de pago" FontWeight="SemiBold" Foreground="#334155" Margin="0,0,0,6"/>
-                            <ComboBox x:Name="cmbMetodoPago" SelectedIndex="0" SelectionChanged="CmbMetodoPago_SelectionChanged" Margin="0,0,0,14">
-                                <ComboBoxItem Content="Efectivo"/>
-                                <ComboBoxItem Content="Tarjeta"/>
-                                <ComboBoxItem Content="Transferencia"/>
-                            </ComboBox>
-
-                            <TextBlock Text="Efectivo recibido" FontWeight="SemiBold" Foreground="#334155" Margin="0,0,0,6"/>
-                            <TextBox x:Name="txtEfectivoRecibido" Height="38" Padding="8,7" TextChanged="TxtEfectivoRecibido_TextChanged" Margin="0,0,0,14"/>
-
-                            <DockPanel Margin="0,0,0,14">
-                                <TextBlock Text="Cambio" FontWeight="Bold" Foreground="#334155"/>
-                                <TextBlock x:Name="lblCambio" Text="$0.00" DockPanel.Dock="Right" FontWeight="Black" Foreground="#16A34A" HorizontalAlignment="Right"/>
-                            </DockPanel>
-
-                            <Separator Margin="0,0,0,14"/>
-
-                            <TextBlock Text="Impresora de tickets" FontWeight="SemiBold" Foreground="#334155" Margin="0,0,0,6"/>
-                            <ComboBox x:Name="cmbImpresoras" Margin="0,0,0,8"/>
-                            <DockPanel Margin="0,0,0,8">
-                                <CheckBox x:Name="chkImprimirTicket" Content="Imprimir al cobrar" IsChecked="True" VerticalAlignment="Center"/>
-                                <Button x:Name="btnProbarImpresora" Content="Probar" DockPanel.Dock="Right" Width="82" Height="32" Background="#06B6D4" Foreground="White" FontWeight="Bold" Click="BtnProbarImpresora_Click"/>
-                            </DockPanel>
-                        </StackPanel>
-                    </ScrollViewer>
-
-                    <StackPanel Grid.Row="2">
-                        <Separator Margin="0,8,0,10"/>
-                        <DockPanel>
-                            <TextBlock Text="Total" Foreground="#64748B" FontWeight="SemiBold" VerticalAlignment="Center"/>
-                            <TextBlock x:Name="lblTotal" Text="$0.00" DockPanel.Dock="Right" FontSize="28" FontWeight="Black" Foreground="#E74C3C" HorizontalAlignment="Right"/>
-                        </DockPanel>
-                        <Button Content="Registrar venta" Height="46" Margin="0,10,0,0" Background="#2ECC71" Foreground="White" FontSize="16" FontWeight="Bold" Click="BtnRegistrarVenta_Click"/>
-                    </StackPanel>
-                </Grid>
-            </Border>
         </Grid>
 
         <DockPanel Grid.Row="2" Margin="0,14,0,0">
+            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                <TextBlock Text="Total" Foreground="#64748B" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                <TextBlock x:Name="lblTotal" Text="$0.00" FontSize="24" FontWeight="Black" Foreground="#E74C3C" VerticalAlignment="Center" Margin="0,0,18,0"/>
+                <Button Content="Quitar seleccionado" Height="32" Padding="10,0" Background="#64748B" Foreground="White" FontWeight="Bold" Click="BtnQuitar_Click" Margin="0,0,10,0"/>
+                <Button Content="Registrar venta" MinWidth="170" Height="42" Padding="14,0" Background="#2ECC71" Foreground="White" FontSize="15" FontWeight="Bold" Click="BtnRegistrarVenta_Click"/>
+            </StackPanel>
             <TextBlock x:Name="lblEstado" Foreground="#64748B" VerticalAlignment="Center"/>
-            <Button Content="Quitar seleccionado" DockPanel.Dock="Right" MinWidth="150" Height="38" Padding="14,0" Background="#64748B" Foreground="White" FontWeight="Bold" Click="BtnQuitar_Click"/>
         </DockPanel>
     </Grid>
 </Window>

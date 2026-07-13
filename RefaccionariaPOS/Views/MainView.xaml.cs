@@ -142,7 +142,7 @@ namespace RefaccionariaPOS.Views
             ConfigurarBoton(btnReimprimir, TienePermiso("ventas.reimprimir_ticket"));
             ConfigurarBoton(btnCorteCaja, TienePermiso("corte.ver"));
             ConfigurarBoton(btnUsuarios, TienePermiso("usuarios.permisos"));
-            ConfigurarBoton(btnWhatsApp, TienePermiso("usuarios.permisos"));
+            ConfigurarBoton(btnTelegram, TienePermiso("usuarios.permisos"));
 
             if (!EsRolRestringido() || permisosActuales.Count > 0)
             {
@@ -155,7 +155,7 @@ namespace RefaccionariaPOS.Views
             ConfigurarBoton(btnReimprimir, false);
             ConfigurarBoton(btnCorteCaja, false);
             ConfigurarBoton(btnUsuarios, false);
-            ConfigurarBoton(btnWhatsApp, false);
+            ConfigurarBoton(btnTelegram, false);
 
             if (EsEncargadoInventario())
             {
@@ -180,9 +180,9 @@ namespace RefaccionariaPOS.Views
             MostrarEnPanel(new RegistrarUsuarioView());
         }
 
-        private void BtnWhatsApp_Click(object sender, RoutedEventArgs e)
+        private void BtnTelegram_Click(object sender, RoutedEventArgs e)
         {
-            MostrarEnPanel(new WhatsAppDestinatariosView());
+            MostrarEnPanel(new TelegramDestinatariosView());
         }
 
         private void BtnInventario_Click(object sender, RoutedEventArgs e)
@@ -966,9 +966,9 @@ namespace RefaccionariaPOS.Views
                 {
                     clientes.ActivarDesdePanel();
                 }
-                else if (ventana is WhatsAppDestinatariosView whatsapp)
+                else if (ventana is TelegramDestinatariosView telegram)
                 {
-                    whatsapp.ActivarDesdePanel();
+                    telegram.ActivarDesdePanel();
                 }
             }), DispatcherPriority.Loaded);
         }

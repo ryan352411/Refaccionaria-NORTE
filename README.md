@@ -55,7 +55,7 @@ RefaxManager puede seguir vendiendo aunque se caiga el internet:
 - Las ventas offline quedan en una cola local y se suben solas a Neon (en orden, con su fecha original) cuando regresa el internet; el panel principal muestra cuantas ventas faltan por sincronizar.
 - El inicio de sesion tambien funciona sin internet usando los usuarios guardados localmente. Se necesita haber entrado al menos una vez con conexion en esa computadora.
 
-Limitaciones del modo offline: inventario (alta/edicion), historial, devoluciones, corte de caja, clientes frecuentes y articulos comunes requieren conexion. Los avisos de WhatsApp de las ventas offline se envian al momento de sincronizar.
+Limitaciones del modo offline: inventario (alta/edicion), historial, devoluciones, corte de caja, clientes frecuentes y articulos comunes requieren conexion. Los avisos de Telegram de las ventas offline se envian al momento de sincronizar.
 
 ## Catalogo web para clientes
 

@@ -110,7 +110,7 @@ namespace RefaccionariaPOS.Services
                     int ventaId = await GuardarVentaAsync(conexion, venta);
                     OfflineStore.EliminarVentaPendiente(venta.IdLocal);
                     sincronizadas++;
-                    WhatsAppNotificationService.NotificarVentaEnSegundoPlano(ventaId);
+                    TelegramNotificationService.NotificarVentaEnSegundoPlano(ventaId);
                 }
 
                 EstadoConexion.MarcarExito();

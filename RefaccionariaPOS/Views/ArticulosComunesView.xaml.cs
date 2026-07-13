@@ -17,6 +17,7 @@ namespace RefaccionariaPOS.Views
         private readonly int usuarioId;
         private readonly ObservableCollection<ProductoCarrito> articulos = new();
         private decimal totalVenta;
+        private List<ClienteVentaOpcion> clientesVenta = new();
 
         public ArticulosComunesView(int usuarioId)
         {
@@ -25,7 +26,6 @@ namespace RefaccionariaPOS.Views
             dgArticulos.ItemsSource = articulos;
             AsegurarColumnasArticulosComunes();
             CargarClientesFrecuentes();
-            CargarImpresoras();
             Loaded += (_, _) => txtNombre.Focus();
             ActualizarTotales();
         }
@@ -120,61 +120,11 @@ namespace RefaccionariaPOS.Views
             ActualizarTotales();
         }
 
-        private void TxtEfectivoRecibido_TextChanged(object sender, TextChangedEventArgs e)
-        {
-            ActualizarCambio();
-        }
-
-        private void CmbMetodoPago_SelectionChanged(object sender, SelectionChangedEventArgs e)
-        {
-            ActualizarCambio();
-        }
-
         private void ActualizarTotales()
         {
             totalVenta = articulos.Sum(item => item.Subtotal);
             lblTotal.Text = totalVenta.ToString("C");
             lblEstado.Text = $"{articulos.Count} articulos en la venta.";
-            ActualizarCambio();
-        }
-
-        private void ActualizarCambio()
-        {
-            if (txtEfectivoRecibido == null || lblCambio == null || cmbMetodoPago == null)
-            {
-                return;
-            }
-
-            bool esEfectivo = ObtenerMetodoPago().Equals("Efectivo", StringComparison.OrdinalIgnoreCase);
-            txtEfectivoRecibido.IsEnabled = esEfectivo;
-
-            if (!esEfectivo)
-            {
-                lblCambio.Text = "$0.00";
-                return;
-            }
-
-            decimal cambio = Math.Max(0, LeerEfectivoRecibido() - totalVenta);
-            lblCambio.Text = cambio.ToString("C");
-        }
-
-        private string ObtenerMetodoPago()
-        {
-            return (cmbMetodoPago.SelectedItem as ComboBoxItem)?.Content.ToString() ?? "Efectivo";
-        }
-
-        private decimal LeerEfectivoRecibido()
-        {
-            return decimal.TryParse(txtEfectivoRecibido.Text, out decimal recibido) && recibido > 0
-                ? recibido
-                : 0;
-        }
-
-        private int? ObtenerClienteSeleccionadoId()
-        {
-            return cmbClientes.SelectedValue is int clienteId && clienteId > 0
-                ? clienteId
-                : null;
         }
 
         private void BtnRegistrarVenta_Click(object sender, RoutedEventArgs e)
@@ -186,34 +136,28 @@ namespace RefaccionariaPOS.Views
                 return;
             }
 
-            string metodoPago = ObtenerMetodoPago();
-            decimal efectivoRecibido = metodoPago.Equals("Efectivo", StringComparison.OrdinalIgnoreCase)
-                ? LeerEfectivoRecibido()
-                : 0;
-            decimal cambioEntregado = metodoPago.Equals("Efectivo", StringComparison.OrdinalIgnoreCase)
-                ? efectivoRecibido - totalVenta
-                : 0;
-
-            if (metodoPago.Equals("Efectivo", StringComparison.OrdinalIgnoreCase) && efectivoRecibido < totalVenta)
+            CobroWindow cobro = new CobroWindow(totalVenta, clientesVenta);
+            Window? duenio = Application.Current?.MainWindow;
+            if (duenio != null && duenio.IsVisible && !ReferenceEquals(duenio, this))
             {
-                MessageBox.Show("El efectivo recibido no cubre el total de la venta.", "Efectivo insuficiente", MessageBoxButton.OK, MessageBoxImage.Warning);
-                txtEfectivoRecibido.Focus();
+                cobro.Owner = duenio;
+                cobro.WindowStartupLocation = WindowStartupLocation.CenterOwner;
+            }
+
+            if (cobro.ShowDialog() != true)
+            {
                 return;
             }
 
             try
             {
-                (int ventaId, int folio) = RegistrarVentaComun(metodoPago, efectivoRecibido, cambioEntregado);
-                TicketService.GenerarTicketVenta(
-                    ventaId,
-                    chkImprimirTicket.IsChecked == true,
-                    cmbImpresoras.SelectedItem?.ToString());
+                (int ventaId, int folio) = RegistrarVentaComun(cobro.MetodoPago, cobro.EfectivoRecibido, cobro.CambioEntregado, cobro.ClienteId);
+                TicketService.GenerarTicketVenta(ventaId, cobro.Imprimir, cobro.Impresora);
 
-                // Aviso por WhatsApp a los numeros configurados (no bloquea ni afecta la venta si falla).
-                WhatsAppNotificationService.NotificarVentaEnSegundoPlano(ventaId);
+                // Aviso por Telegram a los destinatarios configurados (no bloquea ni afecta la venta si falla).
+                TelegramNotificationService.NotificarVentaEnSegundoPlano(ventaId);
 
                 articulos.Clear();
-                txtEfectivoRecibido.Clear();
                 ActualizarTotales();
                 txtNombre.Focus();
             }
@@ -223,7 +167,7 @@ namespace RefaccionariaPOS.Views
             }
         }
 
-        private (int ventaId, int folio) RegistrarVentaComun(string metodoPago, decimal efectivoRecibido, decimal cambioEntregado)
+        private (int ventaId, int folio) RegistrarVentaComun(string metodoPago, decimal efectivoRecibido, decimal cambioEntregado, int? clienteId)
         {
             DatabaseConnection db = new DatabaseConnection();
             using (NpgsqlConnection conexion = db.GetConnection())
@@ -242,7 +186,7 @@ namespace RefaccionariaPOS.Views
                     using (NpgsqlCommand cmdVenta = new NpgsqlCommand(queryVenta, conexion, transaccion))
                     {
                         cmdVenta.Parameters.AddWithValue("@usuarioId", usuarioId == 0 ? DBNull.Value : (object)usuarioId);
-                        cmdVenta.Parameters.AddWithValue("@clienteId", ObtenerClienteSeleccionadoId().HasValue ? (object)ObtenerClienteSeleccionadoId()!.Value : DBNull.Value);
+                        cmdVenta.Parameters.AddWithValue("@clienteId", clienteId.HasValue ? (object)clienteId.Value : DBNull.Value);
                         cmdVenta.Parameters.AddWithValue("@total", totalVenta);
                         cmdVenta.Parameters.AddWithValue("@fecha", DateTime.Now);
                         cmdVenta.Parameters.AddWithValue("@estado", "Completada");
@@ -281,7 +225,7 @@ namespace RefaccionariaPOS.Views
                         }
                     }
 
-                    SumarPuntoClienteSeleccionado(conexion, transaccion);
+                    SumarPuntoClienteSeleccionado(conexion, transaccion, clienteId);
                     transaccion.Commit();
                     return (ventaId, folio);
                 }
@@ -321,13 +265,11 @@ namespace RefaccionariaPOS.Views
             {
             }
 
-            cmbClientes.ItemsSource = clientes;
-            cmbClientes.SelectedValue = 0;
+            clientesVenta = clientes;
         }
 
-        private void SumarPuntoClienteSeleccionado(NpgsqlConnection conexion, NpgsqlTransaction transaccion)
+        private static void SumarPuntoClienteSeleccionado(NpgsqlConnection conexion, NpgsqlTransaction transaccion, int? clienteId)
         {
-            int? clienteId = ObtenerClienteSeleccionadoId();
             if (!clienteId.HasValue)
             {
                 return;
@@ -337,56 +279,6 @@ namespace RefaccionariaPOS.Views
             {
                 cmd.Parameters.AddWithValue("@clienteId", clienteId.Value);
                 cmd.ExecuteNonQuery();
-            }
-        }
-
-        private void CargarImpresoras()
-        {
-            cmbImpresoras.Items.Clear();
-            foreach (string impresora in PrinterSettings.InstalledPrinters)
-            {
-                cmbImpresoras.Items.Add(impresora);
-            }
-
-            string impresoraDefault = new PrinterSettings().PrinterName;
-            if (cmbImpresoras.Items.Contains(impresoraDefault))
-            {
-                cmbImpresoras.SelectedItem = impresoraDefault;
-            }
-            else if (cmbImpresoras.Items.Count > 0)
-            {
-                cmbImpresoras.SelectedIndex = 0;
-            }
-            else
-            {
-                chkImprimirTicket.IsChecked = false;
-                chkImprimirTicket.IsEnabled = false;
-                btnProbarImpresora.IsEnabled = false;
-            }
-        }
-
-        private void BtnProbarImpresora_Click(object sender, RoutedEventArgs e)
-        {
-            try
-            {
-                TicketService.ImprimirTicket(new List<string>
-                {
-                    "REFACCIONARIA NORTE",
-                    "AV. DIVICION DEL NORTE N.63 COL. CENTRO",
-                    "----------------------------------------",
-                    "PRUEBA DE IMPRESORA TERMICA",
-                    $"Fecha: {DateTime.Now:dd/MM/yyyy HH:mm:ss}",
-                    "Impresora lista para tickets.",
-                    "----------------------------------------",
-                    string.Empty,
-                    string.Empty
-                }, cmbImpresoras.SelectedItem?.ToString());
-
-                MessageBox.Show("Ticket de prueba enviado a la impresora.", "Impresora", MessageBoxButton.OK, MessageBoxImage.Information);
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show("No se pudo imprimir la prueba: " + ex.Message, "Impresora", MessageBoxButton.OK, MessageBoxImage.Warning);
             }
         }
 

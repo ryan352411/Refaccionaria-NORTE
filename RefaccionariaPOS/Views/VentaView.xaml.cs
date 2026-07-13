@@ -639,8 +639,8 @@ namespace RefaccionariaPOS.Views
             {
                 GenerarTicket(ventaIdGenerado, cobro.Imprimir, cobro.Impresora);
 
-                // Aviso por WhatsApp a los numeros configurados (no bloquea ni afecta la venta si falla).
-                WhatsAppNotificationService.NotificarVentaEnSegundoPlano(ventaIdGenerado);
+                // Aviso por Telegram a los destinatarios configurados (no bloquea ni afecta la venta si falla).
+                TelegramNotificationService.NotificarVentaEnSegundoPlano(ventaIdGenerado);
             }
 
             listaCarrito.Clear();

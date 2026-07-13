@@ -191,15 +191,63 @@ namespace RefaccionariaPOS.Services
             return rutaArchivo;
         }
 
+        /// <summary>
+        /// Impresoras instaladas excluyendo las virtuales (PDF, XPS, OneNote, Fax),
+        /// que abren una ventana para guardar archivo en lugar de imprimir.
+        /// </summary>
+        public static List<string> ObtenerImpresorasFisicas()
+        {
+            List<string> impresoras = new();
+            foreach (string impresora in PrinterSettings.InstalledPrinters)
+            {
+                if (!EsImpresoraVirtual(impresora))
+                {
+                    impresoras.Add(impresora);
+                }
+            }
+
+            return impresoras;
+        }
+
+        private static bool EsImpresoraVirtual(string nombre)
+        {
+            string mayusculas = nombre.ToUpperInvariant();
+            return mayusculas.Contains("PDF")
+                || mayusculas.Contains("XPS")
+                || mayusculas.Contains("ONENOTE")
+                || mayusculas.Contains("FAX");
+        }
+
+        private static string? ResolverImpresoraFisica(string? impresora)
+        {
+            if (!string.IsNullOrWhiteSpace(impresora) && !EsImpresoraVirtual(impresora))
+            {
+                return impresora;
+            }
+
+            string impresoraDefault = new PrinterSettings().PrinterName;
+            if (!string.IsNullOrWhiteSpace(impresoraDefault) && !EsImpresoraVirtual(impresoraDefault))
+            {
+                return impresoraDefault;
+            }
+
+            List<string> fisicas = ObtenerImpresorasFisicas();
+            return fisicas.Count > 0 ? fisicas[0] : null;
+        }
+
         public static void ImprimirTicket(List<string> lineasTicket, string? impresora = null)
         {
+            string? impresoraFinal = ResolverImpresoraFisica(impresora);
+            if (impresoraFinal == null)
+            {
+                // Sin impresora fisica disponible: no se imprime para evitar la ventana de guardar archivo.
+                return;
+            }
+
             int lineaActual = 0;
             using (PrintDocument documento = new PrintDocument())
             {
-                if (!string.IsNullOrWhiteSpace(impresora))
-                {
-                    documento.PrinterSettings.PrinterName = impresora;
-                }
+                documento.PrinterSettings.PrinterName = impresoraFinal;
 
                 ConfigurarPapelTermico(documento);
 
