@@ -31,6 +31,8 @@ namespace RefaccionariaPOS.Views
         private int busquedaVersion;
         private bool activada;
 
+        public bool TieneProductosEnCarrito => listaCarrito.Count > 0;
+
         public VentaView(int usuarioId, string codigoInicial = "")
         {
             InitializeComponent();
@@ -610,12 +612,13 @@ namespace RefaccionariaPOS.Views
 
             int ventaIdGenerado = 0;
             bool ventaOffline = true;
+            List<ProductoBajoStock> productosBajoStock = new List<ProductoBajoStock>();
 
             if (EstadoConexion.DebeIntentarOnline)
             {
                 try
                 {
-                    ventaIdGenerado = RegistrarVentaEnBase(metodoPago, efectivoRecibido, cambioEntregado, clienteId);
+                    ventaIdGenerado = RegistrarVentaEnBase(metodoPago, efectivoRecibido, cambioEntregado, clienteId, productosBajoStock);
                     EstadoConexion.MarcarExito();
                     ventaOffline = false;
                 }
@@ -641,6 +644,13 @@ namespace RefaccionariaPOS.Views
 
                 // Aviso por Telegram a los destinatarios configurados (no bloquea ni afecta la venta si falla).
                 TelegramNotificationService.NotificarVentaEnSegundoPlano(ventaIdGenerado);
+                TelegramNotificationService.NotificarBajoStockEnSegundoPlano(productosBajoStock);
+
+                MessageBox.Show(
+                    "La venta se procesó correctamente.",
+                    "Venta realizada",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
             }
 
             listaCarrito.Clear();
@@ -648,7 +658,7 @@ namespace RefaccionariaPOS.Views
             txtBuscarId.Focus();
         }
 
-        private int RegistrarVentaEnBase(string metodoPago, decimal efectivoRecibido, decimal cambioEntregado, int? clienteId)
+        private int RegistrarVentaEnBase(string metodoPago, decimal efectivoRecibido, decimal cambioEntregado, int? clienteId, List<ProductoBajoStock> productosBajoStock)
         {
             int ventaIdGenerado = 0;
             DatabaseConnection db = new DatabaseConnection();
@@ -746,14 +756,35 @@ namespace RefaccionariaPOS.Views
                             string queryStock = @"
                         UPDATE productos
                         SET stock_actual = stock_actual - @cantidad
-                        WHERE codigo_barras = @codigo;";
+                        WHERE codigo_barras = @codigo
+                        RETURNING nombre, stock_actual, stock_minimo;";
 
                             using (NpgsqlCommand cmdStock = new NpgsqlCommand(queryStock, conexion, transaccion))
                             {
                                 cmdStock.Parameters.AddWithValue("@cantidad", item.Cantidad);
                                 cmdStock.Parameters.AddWithValue("@codigo", item.CodigoBarras);
 
-                                cmdStock.ExecuteNonQuery();
+                                using (NpgsqlDataReader readerStock = cmdStock.ExecuteReader())
+                                {
+                                    if (readerStock.Read())
+                                    {
+                                        decimal stockRestante = Convert.ToDecimal(readerStock["stock_actual"]);
+                                        decimal stockMinimo = readerStock["stock_minimo"] != DBNull.Value
+                                            ? Convert.ToDecimal(readerStock["stock_minimo"])
+                                            : 0m;
+
+                                        if (stockRestante <= stockMinimo)
+                                        {
+                                            productosBajoStock.Add(new ProductoBajoStock
+                                            {
+                                                Nombre = readerStock["nombre"].ToString() ?? item.Nombre,
+                                                Codigo = item.CodigoBarras,
+                                                StockActual = stockRestante,
+                                                StockMinimo = stockMinimo
+                                            });
+                                        }
+                                    }
+                                }
                             }
                         }
 

@@ -18,7 +18,11 @@
                 <TextBlock Text="Escanea o escribe el codigo de barras. Si ya existe, se rellenan los datos." FontSize="12" Foreground="#64748B" TextWrapping="Wrap" Margin="0,0,0,12" TextAlignment="Center"/>
 
                 <TextBlock Text="Codigo de barras:" Margin="0,5,0,2" FontWeight="SemiBold"/>
-                <TextBox x:Name="txtCodigo" Height="36" Padding="8,7" KeyDown="TxtCodigo_KeyDown" LostFocus="TxtCodigo_LostFocus"/>
+                <TextBox x:Name="txtCodigo" Height="36" Padding="8,7" MaxLength="13"
+                         PreviewTextInput="SoloNumeros_PreviewTextInput"
+                         PreviewKeyDown="SoloNumeros_PreviewKeyDown"
+                         DataObject.Pasting="SoloNumeros_Pasting"
+                         KeyDown="TxtCodigo_KeyDown" LostFocus="TxtCodigo_LostFocus"/>
 
                 <TextBlock Text="Nombre del producto:" Margin="0,10,0,2" FontWeight="SemiBold"/>
                 <TextBox x:Name="txtNombre" Height="36" Padding="8,7"/>
@@ -62,16 +66,28 @@
                 </StackPanel>
 
                 <TextBlock Text="Costo proveedor ($):" Margin="0,10,0,2" FontWeight="SemiBold"/>
-                <TextBox x:Name="txtCosto" Height="36" Padding="8,7"/>
+                <TextBox x:Name="txtCosto" Height="36" Padding="8,7" MaxLength="12"
+                         PreviewTextInput="Precio_PreviewTextInput"
+                         PreviewKeyDown="SoloNumeros_PreviewKeyDown"
+                         DataObject.Pasting="Precio_Pasting"/>
 
                 <TextBlock x:Name="lblPrecioVenta" Text="Precio venta ($):" Margin="0,10,0,2" FontWeight="SemiBold"/>
-                <TextBox x:Name="txtPrecioVenta" Height="36" Padding="8,7"/>
+                <TextBox x:Name="txtPrecioVenta" Height="36" Padding="8,7" MaxLength="12"
+                         PreviewTextInput="Precio_PreviewTextInput"
+                         PreviewKeyDown="SoloNumeros_PreviewKeyDown"
+                         DataObject.Pasting="Precio_Pasting"/>
 
                 <TextBlock Text="Stock minimo:" Margin="0,10,0,2" FontWeight="SemiBold"/>
-                <TextBox x:Name="txtStockMinimo" Height="36" Padding="8,7" Text="5"/>
+                <TextBox x:Name="txtStockMinimo" Height="36" Padding="8,7" Text="5" MaxLength="8"
+                         PreviewTextInput="Stock_PreviewTextInput"
+                         PreviewKeyDown="SoloNumeros_PreviewKeyDown"
+                         DataObject.Pasting="Stock_Pasting"/>
 
                 <TextBlock x:Name="lblStockCaption" Text="Stock inicial:" Margin="0,10,0,2" FontWeight="SemiBold"/>
-                <TextBox x:Name="txtStock" Height="36" Padding="8,7"/>
+                <TextBox x:Name="txtStock" Height="36" Padding="8,7" MaxLength="8"
+                         PreviewTextInput="Stock_PreviewTextInput"
+                         PreviewKeyDown="SoloNumeros_PreviewKeyDown"
+                         DataObject.Pasting="Stock_Pasting"/>
 
                 <UniformGrid Columns="2" Margin="0,20,0,0">
                     <Button x:Name="btnGuardar" Content="Guardar" Background="#27AE60" Foreground="White" FontWeight="Bold" Height="42" Margin="5" Click="BtnGuardar_Click" Cursor="Hand"/>

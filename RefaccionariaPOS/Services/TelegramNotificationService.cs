@@ -93,6 +93,73 @@ namespace RefaccionariaPOS.Services
             }
         }
 
+        /// <summary>
+        /// Lanza el aviso de productos con bajo stock sin bloquear a quien lo invoca.
+        /// Nunca propaga excepciones.
+        /// </summary>
+        public static void NotificarBajoStockEnSegundoPlano(IReadOnlyList<ProductoBajoStock> productos)
+        {
+            _ = NotificarBajoStockAsync(productos);
+        }
+
+        public static async Task NotificarBajoStockAsync(IReadOnlyList<ProductoBajoStock> productos)
+        {
+            try
+            {
+                if (productos == null || productos.Count == 0)
+                {
+                    return;
+                }
+
+                Log($"--- Inicio aviso bajo stock ({productos.Count} productos) ---");
+                string? token = LeerToken();
+                if (string.IsNullOrWhiteSpace(token))
+                {
+                    Log("ABORTA: falta la variable REFAX_TELEGRAM_TOKEN.");
+                    return;
+                }
+
+                List<string> chats = await ObtenerChatsActivosAsync().ConfigureAwait(false);
+                Log($"Chats activos: {chats.Count} [{string.Join(", ", chats)}]");
+                if (chats.Count == 0)
+                {
+                    Log("ABORTA: no hay chats activos en telegram_destinatarios.");
+                    return;
+                }
+
+                StringBuilder mensaje = new StringBuilder("⚠️ Alerta de bajo stock\n");
+                foreach (ProductoBajoStock producto in productos)
+                {
+                    mensaje.Append($"\n• {producto.Nombre}");
+                    if (!string.IsNullOrWhiteSpace(producto.Codigo))
+                    {
+                        mensaje.Append($" (código {producto.Codigo})");
+                    }
+                    mensaje.Append($": quedan {FormatearCantidad(producto.StockActual)}, mínimo {FormatearCantidad(producto.StockMinimo)}");
+                }
+
+                string texto = mensaje.ToString();
+                foreach (string chatId in chats)
+                {
+                    await EnviarMensajeAsync(token, chatId, texto).ConfigureAwait(false);
+                }
+
+                Log("--- Fin aviso bajo stock ---");
+            }
+            catch (Exception ex)
+            {
+                // El aviso de Telegram nunca debe afectar la operacion de la caja.
+                Log("EXCEPCION bajo stock: " + ex.Message);
+            }
+        }
+
+        private static string FormatearCantidad(decimal valor)
+        {
+            return valor == Math.Truncate(valor)
+                ? valor.ToString("0", CulturaMexico)
+                : valor.ToString("0.###", CulturaMexico);
+        }
+
         private static async Task EnviarMensajeAsync(string token, string chatId, string texto)
         {
             try
@@ -315,5 +382,16 @@ namespace RefaccionariaPOS.Services
     {
         public string ChatId { get; set; } = string.Empty;
         public string Nombre { get; set; } = string.Empty;
+    }
+
+    /// <summary>
+    /// Producto que quedo en o por debajo de su stock minimo tras una venta.
+    /// </summary>
+    public class ProductoBajoStock
+    {
+        public string Nombre { get; set; } = string.Empty;
+        public string Codigo { get; set; } = string.Empty;
+        public decimal StockActual { get; set; }
+        public decimal StockMinimo { get; set; }
     }
 }

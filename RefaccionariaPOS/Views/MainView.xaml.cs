@@ -143,6 +143,7 @@ namespace RefaccionariaPOS.Views
             ConfigurarBoton(btnCorteCaja, TienePermiso("corte.ver"));
             ConfigurarBoton(btnUsuarios, TienePermiso("usuarios.permisos"));
             ConfigurarBoton(btnTelegram, TienePermiso("usuarios.permisos"));
+            ConfigurarBoton(btnDisenoTickets, TienePermiso("usuarios.permisos"));
 
             if (!EsRolRestringido() || permisosActuales.Count > 0)
             {
@@ -156,6 +157,7 @@ namespace RefaccionariaPOS.Views
             ConfigurarBoton(btnCorteCaja, false);
             ConfigurarBoton(btnUsuarios, false);
             ConfigurarBoton(btnTelegram, false);
+            ConfigurarBoton(btnDisenoTickets, false);
 
             if (EsEncargadoInventario())
             {
@@ -183,6 +185,11 @@ namespace RefaccionariaPOS.Views
         private void BtnTelegram_Click(object sender, RoutedEventArgs e)
         {
             MostrarEnPanel(new TelegramDestinatariosView());
+        }
+
+        private void BtnDisenoTickets_Click(object sender, RoutedEventArgs e)
+        {
+            MostrarEnPanel(new DisenoTicketsView());
         }
 
         private void BtnInventario_Click(object sender, RoutedEventArgs e)
@@ -551,10 +558,44 @@ namespace RefaccionariaPOS.Views
                 CargarPermisosActuales();
                 ConfigurarPermisosPorRol();
                 CargarAlertasInventario();
+
+                // Si el nuevo usuario no tiene permiso para la pantalla que estaba
+                // abierta, se regresa al buscador de productos de inicio.
+                if (vistaEmbebidaActual != null && !PuedeVerVistaEmbebida())
+                {
+                    VolverAlBuscadorInicio();
+                }
+
                 ventana.DialogResult = true;
             };
 
             ventana.ShowDialog();
+        }
+
+        /// <summary>
+        /// Cada vista embebida se abre desde un boton del menu; el boton queda
+        /// habilitado o no segun los permisos, asi que basta revisar su estado
+        /// para saber si el usuario actual puede seguir viendo esa pantalla.
+        /// </summary>
+        private bool PuedeVerVistaEmbebida()
+        {
+            Button? boton = vistaEmbebidaActual switch
+            {
+                VentaView => btnVenta,
+                ArticulosComunesView => btnArticulosComunes,
+                InventarioView => btnInventario,
+                HistorialVentasView => btnHistorial,
+                DevolucionesView => btnDevoluciones,
+                ClientesView => btnClientes,
+                ReimprimirTicketsView => btnReimprimir,
+                CorteCajaView => btnCorteCaja,
+                RegistrarUsuarioView => btnUsuarios,
+                TelegramDestinatariosView => btnTelegram,
+                DisenoTicketsView => btnDisenoTickets,
+                _ => null
+            };
+
+            return boton?.IsEnabled ?? true;
         }
 
         private void CargarAlertasInventario()
@@ -987,7 +1028,7 @@ namespace RefaccionariaPOS.Views
 
             Button btnCerrar = new Button
             {
-                Content = "Volver al inicio",
+                Content = "Cerrar",
                 Width = 92,
                 Height = 34,
                 HorizontalAlignment = HorizontalAlignment.Right,
@@ -997,7 +1038,24 @@ namespace RefaccionariaPOS.Views
                 BorderThickness = new Thickness(0),
                 Cursor = Cursors.Hand
             };
-            btnCerrar.Click += (_, _) => VolverAlBuscadorInicio();
+            btnCerrar.Click += (_, _) =>
+            {
+                if (vistaEmbebidaActual is VentaView venta && venta.TieneProductosEnCarrito)
+                {
+                    MessageBoxResult respuesta = MessageBox.Show(
+                        "El carrito tiene productos agregados. Si cierras el punto de venta se eliminaran.\n\n¿Deseas continuar?",
+                        "Confirmar cierre",
+                        MessageBoxButton.YesNo,
+                        MessageBoxImage.Warning);
+
+                    if (respuesta != MessageBoxResult.Yes)
+                    {
+                        return;
+                    }
+                }
+
+                VolverAlBuscadorInicio();
+            };
 
             DockPanel.SetDock(btnCerrar, Dock.Right);
             barra.Children.Add(btnCerrar);
@@ -1019,6 +1077,32 @@ namespace RefaccionariaPOS.Views
             CargarProductosInicio();
             CargarAlertasInventario();
             txtBuscarProductoInicio.Focus();
+        }
+
+        private void BtnCerrarSesion_Click(object sender, RoutedEventArgs e)
+        {
+            string mensaje = vistaEmbebidaActual is VentaView venta && venta.TieneProductosEnCarrito
+                ? "El carrito del punto de venta tiene productos y se eliminaran al salir.\n\n¿Deseas cerrar la sesion?"
+                : "¿Deseas cerrar la sesion actual?";
+
+            MessageBoxResult respuesta = MessageBox.Show(
+                mensaje,
+                "Cerrar sesion",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Question);
+
+            if (respuesta != MessageBoxResult.Yes)
+            {
+                return;
+            }
+
+            offlineTimer?.Stop();
+
+            // La app se cierra al cerrar la MainWindow, por eso el login toma su lugar antes.
+            LoginView login = new LoginView();
+            Application.Current.MainWindow = login;
+            login.Show();
+            Close();
         }
     }
 

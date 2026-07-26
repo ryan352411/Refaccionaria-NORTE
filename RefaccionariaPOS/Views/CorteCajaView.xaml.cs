@@ -25,6 +25,7 @@ namespace RefaccionariaPOS.Views
         private DateTime finSemana;
         private DateTime inicioMes;
         private DateTime finMes;
+        private int anchoTicketCorte = TicketPlantillaService.AnchoPredeterminado;
 
         public CorteCajaView(int idUsuario = 0, string usuario = "")
         {
@@ -237,7 +238,7 @@ namespace RefaccionariaPOS.Views
                     desgloseCategorias,
                     pagosProveedores);
                 GuardarTicketCorte(tituloPeriodo, lineas);
-                TicketService.ImprimirTicket(lineas);
+                TicketService.ImprimirTicket(lineas, anchoCaracteres: anchoTicketCorte);
                 MessageBox.Show("Ticket de corte enviado a la impresora.", "Corte de caja", MessageBoxButton.OK, MessageBoxImage.Information);
             }
             catch (Exception ex)
@@ -379,66 +380,32 @@ namespace RefaccionariaPOS.Views
             List<CorteCategoriaResumen> desgloseCategorias,
             decimal pagosProveedores)
         {
-            List<string> lineas = new()
+            TicketPlantilla plantilla = TicketPlantillaService.ObtenerPlantilla(TicketPlantillaService.TipoCorte);
+            anchoTicketCorte = plantilla.AnchoCaracteres;
+
+            TicketCorteDatos datos = new TicketCorteDatos
             {
-                "      REFACCIONARIA NORTE",
-                "AV. DIVICION DEL NORTE N.63 COL. CENTRO",
-                "----------------------------------------",
-                string.Empty,
-                "TIPO DE CORTE: " + tituloPeriodo,
-                $"FECHA: {DateTime.Now:dd/MM/yyyy HH:mm}",
-                "USUARIO: " + usuarioCorte,
-                "CAJA: " + cajaActual,
-                $"PERIODO: {inicio:dd/MM/yyyy}-{fin.AddDays(-1):dd/MM/yyyy}",
-                string.Empty,
-                $"VENTAS TOTALES: {resumen.Tickets}",
-                $"TOTAL VENDIDO: {resumen.Ventas:C}",
-                $"PAGOS PROV.: {pagosProveedores:C}",
-                string.Empty,
-                "PAGOS REALIZADOS",
-                "----------------------------------------"
+                TipoCorte = tituloPeriodo,
+                Fecha = DateTime.Now,
+                Usuario = usuarioCorte,
+                Caja = cajaActual,
+                Periodo = $"{inicio:dd/MM/yyyy}-{fin.AddDays(-1):dd/MM/yyyy}",
+                VentasTotales = resumen.Tickets,
+                TotalVendido = resumen.Ventas,
+                PagosProveedores = pagosProveedores
             };
 
-            if (desglosePagos.Count == 0)
+            foreach (CorteOrigenResumen origen in desglosePagos)
             {
-                lineas.Add("Sin ventas registradas.");
-            }
-            else
-            {
-                foreach (CorteOrigenResumen origen in desglosePagos)
-                {
-                    lineas.Add(string.Format(
-                        "{0,-22} {1,17:C}",
-                        AjustarTexto(origen.Origen, 22),
-                        origen.Ventas));
-                }
+                datos.Pagos.Add(new TicketCorteRenglon(origen.Origen, origen.Ventas));
             }
 
-            lineas.Add("----------------------------------------");
-            lineas.Add(string.Empty);
-            lineas.Add("VENTA POR CATEGORIA");
-            lineas.Add("----------------------------------------");
-
-            if (desgloseCategorias.Count == 0)
+            foreach (CorteCategoriaResumen categoria in desgloseCategorias)
             {
-                lineas.Add("Sin categorias vendidas.");
-            }
-            else
-            {
-                foreach (CorteCategoriaResumen categoria in desgloseCategorias)
-                {
-                    lineas.Add(string.Format(
-                        "{0,-22} {1,17:C}",
-                        AjustarTexto(categoria.Categoria, 22),
-                        categoria.Total));
-                }
+                datos.Categorias.Add(new TicketCorteRenglon(categoria.Categoria, categoria.Total));
             }
 
-            lineas.Add("----------------------------------------");
-            lineas.Add("Fin del corte");
-            lineas.Add(string.Empty);
-            lineas.Add(string.Empty);
-            return lineas;
+            return TicketService.GenerarLineasCorte(datos, plantilla);
         }
 
         private static string ObtenerCajaActual()
@@ -446,18 +413,6 @@ namespace RefaccionariaPOS.Views
             string? caja = Environment.GetEnvironmentVariable("REFAXMANAGER_CAJA")
                 ?? Environment.GetEnvironmentVariable("REFACCIONARIA_CAJA");
             return string.IsNullOrWhiteSpace(caja) ? "Caja 1" : caja.Trim();
-        }
-
-        private static string AjustarTexto(string texto, int longitudMaxima)
-        {
-            if (string.IsNullOrWhiteSpace(texto))
-            {
-                return string.Empty;
-            }
-
-            return texto.Length <= longitudMaxima
-                ? texto
-                : texto.Substring(0, longitudMaxima);
         }
 
         private static string QuoteIdentifier(string valor)

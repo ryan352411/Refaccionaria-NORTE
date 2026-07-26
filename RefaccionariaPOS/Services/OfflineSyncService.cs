@@ -78,7 +78,8 @@ namespace RefaccionariaPOS.Services
         private const string QueryDescontarStock = @"
             UPDATE productos
             SET stock_actual = GREATEST(stock_actual - @cantidad, 0)
-            WHERE codigo_barras = @codigo;";
+            WHERE codigo_barras = @codigo
+            RETURNING nombre, stock_actual, stock_minimo;";
 
         /// <summary>
         /// Sube las ventas pendientes en orden cronologico. Devuelve cuantas se
@@ -176,6 +177,7 @@ namespace RefaccionariaPOS.Services
 
         private static async Task<int> GuardarVentaAsync(NpgsqlConnection conexion, VentaOffline venta)
         {
+            List<ProductoBajoStock> productosBajoStock = new();
             await using NpgsqlTransaction transaccion = await conexion.BeginTransactionAsync();
 
             int ventaId;
@@ -215,10 +217,31 @@ namespace RefaccionariaPOS.Services
                 await using NpgsqlCommand cmdStock = new NpgsqlCommand(QueryDescontarStock, conexion, transaccion);
                 cmdStock.Parameters.AddWithValue("@cantidad", detalle.Cantidad);
                 cmdStock.Parameters.AddWithValue("@codigo", detalle.CodigoBarras);
-                await cmdStock.ExecuteNonQueryAsync();
+                await using (NpgsqlDataReader readerStock = await cmdStock.ExecuteReaderAsync())
+                {
+                    if (await readerStock.ReadAsync())
+                    {
+                        decimal stockRestante = Convert.ToDecimal(readerStock["stock_actual"]);
+                        decimal stockMinimo = readerStock["stock_minimo"] != DBNull.Value
+                            ? Convert.ToDecimal(readerStock["stock_minimo"])
+                            : 0m;
+
+                        if (stockRestante <= stockMinimo)
+                        {
+                            productosBajoStock.Add(new ProductoBajoStock
+                            {
+                                Nombre = readerStock["nombre"].ToString() ?? detalle.Nombre,
+                                Codigo = detalle.CodigoBarras,
+                                StockActual = stockRestante,
+                                StockMinimo = stockMinimo
+                            });
+                        }
+                    }
+                }
             }
 
             await transaccion.CommitAsync();
+            TelegramNotificationService.NotificarBajoStockEnSegundoPlano(productosBajoStock);
             return ventaId;
         }
     }

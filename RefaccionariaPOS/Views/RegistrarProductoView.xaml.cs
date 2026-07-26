@@ -136,15 +136,21 @@ namespace RefaccionariaPOS.Views
                 return false;
             }
 
-            if (decimal.TryParse(txtStock.Text, out stock) && stock >= 0)
+            if (!decimal.TryParse(txtStock.Text, out stock) || stock < 0)
             {
-                return true;
+                MessageBox.Show(productoExistenteId.HasValue
+                    ? "Ingresa cuántas piezas vas a agregar al inventario."
+                    : "Ingresa el stock inicial del producto.", "Aviso", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return false;
             }
 
-            MessageBox.Show(productoExistenteId.HasValue
-                ? "Ingresa cuántas piezas vas a agregar al inventario."
-                : "Ingresa el stock inicial del producto.", "Aviso", MessageBoxButton.OK, MessageBoxImage.Warning);
-            return false;
+            if (!EsVentaAGranel() && (stock % 1 != 0 || stockMinimo % 1 != 0))
+            {
+                MessageBox.Show("Los productos por unidad solo aceptan piezas completas en el stock.", "Aviso", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return false;
+            }
+
+            return true;
         }
 
         private void GuardarProducto(decimal costo, decimal precioVenta, decimal stockMinimo, decimal stock)
@@ -255,6 +261,79 @@ namespace RefaccionariaPOS.Views
         private void TxtCodigo_LostFocus(object sender, RoutedEventArgs e)
         {
             BuscarProductoExistente(force: false);
+        }
+
+        private void SoloNumeros_PreviewTextInput(object sender, TextCompositionEventArgs e)
+        {
+            e.Handled = !e.Text.All(char.IsDigit);
+        }
+
+        private void SoloNumeros_PreviewKeyDown(object sender, KeyEventArgs e)
+        {
+            // El espacio no dispara PreviewTextInput, se bloquea aparte.
+            if (e.Key == Key.Space)
+            {
+                e.Handled = true;
+            }
+        }
+
+        private void SoloNumeros_Pasting(object sender, DataObjectPastingEventArgs e)
+        {
+            if (e.DataObject.GetData(typeof(string)) is not string texto || !texto.All(char.IsDigit))
+            {
+                e.CancelCommand();
+            }
+        }
+
+        // Los precios aceptan comas de miles y un punto decimal sin importar la
+        // forma de venta; el stock solo acepta punto decimal cuando es a granel.
+        private static string TextoResultante(TextBox caja, string entrada)
+        {
+            string texto = caja.Text.Remove(caja.SelectionStart, caja.SelectionLength);
+            return texto.Insert(caja.SelectionStart, entrada);
+        }
+
+        private static bool EsTextoPrecioValido(string texto)
+        {
+            return texto.All(c => char.IsDigit(c) || c == ',' || c == '.')
+                && texto.Count(c => c == '.') <= 1;
+        }
+
+        private bool EsTextoStockValido(string texto)
+        {
+            bool permitePunto = EsVentaAGranel();
+            return texto.All(c => char.IsDigit(c) || (permitePunto && c == '.'))
+                && texto.Count(c => c == '.') <= 1;
+        }
+
+        private void Precio_PreviewTextInput(object sender, TextCompositionEventArgs e)
+        {
+            e.Handled = sender is not TextBox caja || !EsTextoPrecioValido(TextoResultante(caja, e.Text));
+        }
+
+        private void Precio_Pasting(object sender, DataObjectPastingEventArgs e)
+        {
+            if (sender is not TextBox caja
+                || e.DataObject.GetData(typeof(string)) is not string texto
+                || !EsTextoPrecioValido(TextoResultante(caja, texto.Trim())))
+            {
+                e.CancelCommand();
+            }
+        }
+
+        private void Stock_PreviewTextInput(object sender, TextCompositionEventArgs e)
+        {
+            e.Handled = sender is not TextBox caja || !EsTextoStockValido(TextoResultante(caja, e.Text));
+        }
+
+        private void Stock_Pasting(object sender, DataObjectPastingEventArgs e)
+        {
+            if (sender is not TextBox caja
+                || e.DataObject.GetData(typeof(string)) is not string texto
+                || !EsTextoStockValido(TextoResultante(caja, texto.Trim())))
+            {
+                e.CancelCommand();
+            }
         }
 
         private void BuscarProductoExistente(bool force)
@@ -495,11 +574,25 @@ namespace RefaccionariaPOS.Views
 
             bool esGranel = EsVentaAGranel();
             pnlUnidadGranel.Visibility = esGranel ? Visibility.Visible : Visibility.Collapsed;
+
+            if (!esGranel)
+            {
+                // Al regresar a venta por unidad se quitan los decimales del stock.
+                txtStock.Text = QuitarDecimales(txtStock.Text);
+                txtStockMinimo.Text = QuitarDecimales(txtStockMinimo.Text);
+            }
+
             string unidad = (cmbUnidadGranel.SelectedItem as ComboBoxItem)?.Content.ToString()?.ToLowerInvariant() ?? "metro";
             lblPrecioVenta.Text = esGranel ? $"Precio por {unidad} ($):" : "Precio venta ($):";
             lblStockCaption.Text = esGranel
                 ? (productoExistenteId.HasValue ? $"{char.ToUpper(unidad[0])}{unidad[1..]}s a agregar:" : $"{char.ToUpper(unidad[0])}{unidad[1..]}s iniciales:")
                 : (productoExistenteId.HasValue ? "Stock a Agregar:" : "Stock inicial:");
+        }
+
+        private static string QuitarDecimales(string texto)
+        {
+            int punto = texto.IndexOf('.');
+            return punto < 0 ? texto : texto[..punto];
         }
 
         private static void AsegurarColumnasProducto(NpgsqlConnection conexion)

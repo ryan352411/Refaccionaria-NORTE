@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Windows;
 using System.Windows.Input;
+using System.Windows.Media;
 using Npgsql;
 using RefaccionariaPOS.Data;
 using RefaccionariaPOS.Security;
@@ -147,6 +148,41 @@ namespace RefaccionariaPOS.Views
             Application.Current.MainWindow = mainWindow;
             mainWindow.Show();
             Close();
+        }
+
+        private void BtnVerPassword_Click(object sender, RoutedEventArgs e)
+        {
+            bool mostrar = txtPasswordVisible.Visibility != Visibility.Visible;
+
+            if (mostrar)
+            {
+                txtPasswordVisible.Text = txtPassword.Password;
+                txtPasswordVisible.Visibility = Visibility.Visible;
+                txtPassword.Visibility = Visibility.Collapsed;
+                iconoOjo.Foreground = new SolidColorBrush(Color.FromRgb(0x2E, 0xCC, 0x71));
+                btnVerPassword.ToolTip = "Ocultar contraseña";
+                txtPasswordVisible.Focus();
+                txtPasswordVisible.CaretIndex = txtPasswordVisible.Text.Length;
+            }
+            else
+            {
+                txtPassword.Password = txtPasswordVisible.Text;
+                txtPasswordVisible.Visibility = Visibility.Collapsed;
+                txtPassword.Visibility = Visibility.Visible;
+                iconoOjo.Foreground = new SolidColorBrush(Color.FromRgb(0x6B, 0x77, 0x85));
+                btnVerPassword.ToolTip = "Mostrar contraseña";
+                txtPassword.Focus();
+            }
+        }
+
+        private void TxtPasswordVisible_TextChanged(object sender, System.Windows.Controls.TextChangedEventArgs e)
+        {
+            // Mantiene el PasswordBox al dia mientras se escribe con la contrasena visible,
+            // porque IniciarSesion siempre lee txtPassword.Password.
+            if (txtPassword.Password != txtPasswordVisible.Text)
+            {
+                txtPassword.Password = txtPasswordVisible.Text;
+            }
         }
 
         private void Credentials_KeyDown(object sender, KeyEventArgs e)

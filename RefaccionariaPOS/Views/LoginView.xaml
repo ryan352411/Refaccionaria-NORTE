@@ -36,7 +36,19 @@
                           KeyDown="Credentials_KeyDown"/>
 
                 <TextBlock Text="Contraseña" FontWeight="SemiBold" Foreground="#334155" Margin="0,0,0,6"/>
-                <PasswordBox x:Name="txtPassword" Height="42" FontSize="15" Padding="10,8" Margin="0,0,0,26" KeyDown="Credentials_KeyDown"/>
+                <Grid Margin="0,0,0,26">
+                    <PasswordBox x:Name="txtPassword" Height="42" FontSize="15" Padding="10,8,44,8" VerticalContentAlignment="Center" KeyDown="Credentials_KeyDown"/>
+                    <TextBox x:Name="txtPasswordVisible" Height="42" FontSize="15" Padding="10,8,44,8" VerticalContentAlignment="Center" Visibility="Collapsed" KeyDown="Credentials_KeyDown" TextChanged="TxtPasswordVisible_TextChanged"/>
+                    <Button x:Name="btnVerPassword" Width="36" Height="36" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,4,0"
+                            Background="Transparent" BorderThickness="0" Padding="0" Cursor="Hand" Focusable="False"
+                            HorizontalContentAlignment="Center" VerticalContentAlignment="Center"
+                            ToolTip="Mostrar contraseña" Click="BtnVerPassword_Click">
+                        <Viewbox Width="20" Height="20" Stretch="Uniform">
+                            <TextBlock x:Name="iconoOjo" Text="&#xE7B3;" FontFamily="Segoe MDL2 Assets" FontSize="18" Foreground="#6B7785"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center" TextAlignment="Center"/>
+                        </Viewbox>
+                    </Button>
+                </Grid>
 
                 <Button Content="Entrar" Height="44" Background="#2ECC71" Foreground="White" FontSize="16" FontWeight="Bold" BorderThickness="0" Cursor="Hand" Click="BtnEntrar_Click"/>
             </StackPanel>
